@@ -16,13 +16,23 @@ data = np.loadtxt(sys.argv[1], delimiter=",", skiprows=1)
 
 class Task:
     def __init__(self):
-        self.comp_time = 0
+        self.id = 0
+        self.wect = 0
+        self.bcet = 0
         self.deadline = 0
+        self.priority = 0
+        self.wcrt = 0
+        self.comp_time = 0
+        
         self.comp_count = 0
         self.jobs = 0
-        self.id = 0
 
-
+class Job:
+    def __init__(self):
+        self.task_id = 0
+        self.time = 0
+        self.release_time = 0
+    
 #   Set of tasks: defined from 'data'
 class TaskSet:
     global data, computation_times
@@ -41,7 +51,6 @@ class TaskSet:
         #   Get the priority order (RTA)
         sorted_indices = sorted(range(len(temp_priority)), key=lambda i: temp_priority[i])
         self.priority_order.extend(sorted_indices)
-
 
 
 def gen_random_comp():
