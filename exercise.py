@@ -11,7 +11,7 @@ import sys
 
 computation_times = []
 time_unit = 1
-data = np.loadtxt(sys.argv[1], delimiter=",", skiprows=1)
+data = np.loadtxt(sys.argv[1], delimiter=",", skiprows=1,usecols=range(1, 6))
 
 
 class Task:
@@ -20,7 +20,7 @@ class Task:
         self.deadline = 0
         self.comp_count = 0
         self.jobs = 0
-        self.id = 0
+        self.id = ""
 
 
 #   Set of tasks: defined from 'data'
@@ -47,18 +47,22 @@ class TaskSet:
 def gen_random_comp():
     global data
 
-    for i in len(data):
-        computation_times.append(random.randrange(data[i,1],data[i,2],1))
+    for i in range(len(data)):
+        computation_times.append(random.randrange(int(data[i,1]),int(data[i,2]),1))
     
 
 def RTA_analysis(set):
     wcrt = []
+    interference = 0
 
     #   RTA algorithm
     for i in range(len(set.priority_order)):
         task = set.priority_order[i]
-        
 
+        ri = set.task_list[task].comp_time / (1 - interference)
+        wcrt.append(ri)
+
+        interference += (set.task_list[task].comp_time/set.task_list[task].deadline)
     return wcrt
 
 
@@ -76,7 +80,9 @@ if __name__ == '__main__':
     set1 = TaskSet()
 
     #   VSS call
-    VSS_simulator(set1)
+    #wcrt_vss = VSS_simulator(set1)
+    #print(wcrt_vss)
 
     #   RTA call
-    RTA_analysis(set1)
+    wcrt_rta = RTA_analysis(set1)
+    print(wcrt_rta)
