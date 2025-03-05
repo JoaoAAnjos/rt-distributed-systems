@@ -7,6 +7,7 @@
 import numpy as np
 import random
 import sys
+import math
 
 
 computation_times = []
@@ -35,8 +36,8 @@ class TaskSet:
 
         for i in range(len(data)):
             self.task_list[i].comp_time = computation_times[i]
-            self.task_list[i].deadline = data[i,4]
-            self.task_list[i].id = i + 1
+            self.task_list[i].deadline = data[i,3]
+            self.task_list[i].id = f'T{i + 1}'
 
         #   Get the priority order (RTA)
         sorted_indices = sorted(range(len(temp_priority)), key=lambda i: temp_priority[i])
@@ -48,7 +49,11 @@ def gen_random_comp():
     global data
 
     for i in range(len(data)):
-        computation_times.append(random.randrange(int(data[i,1]),int(data[i,2]),1))
+        if int(data[i,1]) == int(data[i,0]):
+            computation_times.append(int(data[i,1]))
+        else:
+            computation_times.append(random.randrange(int(data[i,1]),int(data[i,0]),1))
+
     
 
 def RTA_analysis(set):
@@ -60,7 +65,7 @@ def RTA_analysis(set):
         task = set.priority_order[i]
 
         ri = set.task_list[task].comp_time / (1 - interference)
-        wcrt.append(ri)
+        wcrt.append(math.ceil(ri))
 
         interference += (set.task_list[task].comp_time/set.task_list[task].deadline)
     return wcrt
