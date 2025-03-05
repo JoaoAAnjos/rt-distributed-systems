@@ -20,18 +20,27 @@ class Task:
         self.deadline = 0
         self.comp_count = 0
         self.jobs = 0
+        self.id = 0
 
 
 #   Set of tasks: defined from 'data'
 class TaskSet:
     global data, computation_times
     
-    def __init__(self, data):
+    def __init__(self):
         self.task_list = [Task() for _ in range(len(data))]
+        self.priority_order = []
+
+        temp_priority = data[:,4]
 
         for i in range(len(data)):
             self.task_list[i].comp_time = computation_times[i]
             self.task_list[i].deadline = data[i,4]
+            self.task_list[i].id = i + 1
+
+        #   Get the priority order (RTA)
+        sorted_indices = sorted(range(len(temp_priority)), key=lambda i: temp_priority[i])
+        self.priority_order.extend(sorted_indices)
 
 
 
@@ -46,7 +55,8 @@ def RTA_analysis(set):
     wcrt = []
 
     #   RTA algorithm
-    for task in set:
+    for i in range(len(set.priority_order)):
+        task = set.priority_order[i]
         
 
     return wcrt
@@ -59,5 +69,14 @@ def VSS_simulator(set):
 
 
 if __name__ == '__main__':
+    random.seed()
+    gen_random_comp()
+
+    #   Set creation
     set1 = TaskSet()
 
+    #   VSS call
+    VSS_simulator(set1)
+
+    #   RTA call
+    RTA_analysis(set1)
