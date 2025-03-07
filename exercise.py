@@ -63,10 +63,13 @@ def RTA_analysis(set):
     #   RTA algorithm
     for i in range(len(set.priority_order)):
         task = set.priority_order[i]
-
         ri = set.task_list[task].comp_time / (1 - interference)
-        wcrt.append(math.ceil(ri))
 
+        if ri > set.task_list[task].deadline:
+            wcrt.append(math.ceil(-1.0))
+            return wcrt
+        
+        wcrt.append(math.ceil(ri))
         interference += (set.task_list[task].comp_time/set.task_list[task].deadline)
     return wcrt
 
