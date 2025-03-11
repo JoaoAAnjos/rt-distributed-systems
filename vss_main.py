@@ -38,14 +38,14 @@ The simulator will print the results to a txt file called 'results'
 
 #ask for csv file(s) containing the model and store the data
 csv_input = input("Specify the csv file(s) that contain the application model:")
-
 csv_files = [file_name.strip() for file_name in csv_input.split(",")]
 
 #ask for simulation time and store it
 sim_time = int(input("Input the desired simulation time:"))
 
 #ask for time unit value and store it
-time_unit = input("Input the desired time unit:")
+time_unit = int(input("Input the desired time unit:"))
 
+#run the simulations
 for file_name in csv_files:
     ex.run_vss(file_name, sim_time, time_unit)

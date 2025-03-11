@@ -7,7 +7,7 @@
 import numpy as np
 import pandas as pd
 import random
-import sys
+import math
 
 from typing import Dict,List
 
@@ -71,8 +71,12 @@ commented it so I could test the simulator without these compilation errors.
 
 I don't think that the simulator is working 100% correctly at the moment, but I haven't been able to figure out whats wrong.
 However, I believe this implementation should be correct for the most part, and only needs small changes to work ok.
+
+UPDATE: uncommented this since I realized this will actually work, but I had to change data is loaded into here, or else it will have
+conflicts when launching vss_main, since it takes no sys args. This is just a temp solution, and the code itself is still broken by
+my changes, but I won't change anything else until further discussion
 """
-#data = np.loadtxt(sys.argv[1], delimiter=",", skiprows=1)
+data = None
 
 """
 Responsible for handling the simulation is run using the information contained on the specified file
@@ -106,9 +110,6 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
             if current_job.release_time == 0:
                 current_job.release_time = current_time
             
-            #decrease the remaining execution time on the job
-            current_job.exec_time -= time_unit
-
             #check if job has finished execution
             if current_job.exec_time <= 0:
                 #calculate response time and save it if its the worst observed
@@ -121,6 +122,8 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                 #set the task as completed
                 current_job.is_ready = False
 
+            #decrease the remaining execution time on the job
+            current_job.exec_time -= time_unit
         
         current_time += time_unit
 
@@ -220,29 +223,43 @@ def highest_priority_ready_job() -> Job:
 
     return result
 
-# def gen_random_comp():
-#     global data
+def gen_random_comp():
+    global data
 
-#     for i in len(data):
-#         computation_times.append(random.randrange(data[i,1],data[i,2],1))
+    for i in range(len(data)):
+        if int(data[i,1]) == int(data[i,0]):
+            computation_times.append(int(data[i,1]))
+        else:
+            #Switched the values here compared to main because you are starting at WCET and stoping at BECT which outputs an error
+            computation_times.append(random.randrange(int(data[i,0]),int(data[i,1]),1))
     
 
-# def RTA_analysis(set):
-#     wcrt = []
+def RTA_analysis(set):
+    wcrt = []
+    interference = 0
 
-#     #   RTA algorithm
-#     for i in range(len(set.priority_order)):
-#         task = set.priority_order[i]
+    #   RTA algorithm
+    for i in range(len(set.priority_order)):
+        task = set.priority_order[i]
+        ri = set.task_list[task].comp_time / (1 - interference)
+
+        if ri > set.task_list[task].deadline:
+            wcrt.append(math.ceil(-1.0))
+            return wcrt
         
+        wcrt.append(math.ceil(ri))
+        interference += (set.task_list[task].comp_time/set.task_list[task].deadline)
+    return wcrt
 
-#     return wcrt
+def run_RTA(input):
+    global data
+    data = input
+    random.seed()
+    gen_random_comp()
 
-# if __name__ == '__main__':
-#     random.seed()
-#     gen_random_comp()
+    #   Set creation
+    set1 = TaskSet()
 
-#     #   Set creation
-#     set1 = TaskSet()
-
-#     #   RTA call
-#     RTA_analysis(set1)
+    #   RTA call
+    wcrt_rta = RTA_analysis(set1)
+    print(wcrt_rta)
