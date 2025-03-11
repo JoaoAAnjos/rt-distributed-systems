@@ -19,8 +19,8 @@ class Task:
         self.period = period
         self.deadline = deadline
         self.priority = priority
-        #initialize it as 0 since this will be calculated by the simulator
-        self.wcrt = 0
+        #initialize it as -1 since this will be calculated by the simulator
+        self.wcrt = -1
         #initialize computation time with a random value between bcet and wcet using time_unit intervals
         rd_values = [bcet + i * time_unit for i in range(int((wcet - bcet) // time_unit) + 1)]
         self.comp_time = random.choice(rd_values)
