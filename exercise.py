@@ -2,9 +2,6 @@
 #       1. VSS Simulator
 #       2. RTA Analysis
 #       3. (previous to both) Response-time generator for tasks
-
-
-import numpy as np
 import pandas as pd
 import random
 import math
@@ -28,25 +25,7 @@ class Job:
         self.release_time = 0
         self.is_ready = True
         self.exec_time = gen_random_comp_time(self)
-    
-#   Set of tasks: defined from 'data'
-class TaskSet:
-    global data, computation_times
-    
-    def __init__(self):
-        self.task_list = [Task() for _ in range(len(data))]
-        self.priority_order = []
 
-        temp_priority = data[:,4]
-
-        for i in range(len(data)):
-            self.task_list[i].comp_time = computation_times[i]
-            self.task_list[i].deadline = data[i,4]
-            self.task_list[i].id = i + 1
-
-        #   Get the priority order (RTA)
-        sorted_indices = sorted(range(len(temp_priority)), key=lambda i: temp_priority[i])
-        self.priority_order.extend(sorted_indices)
 
 #global variable so it can be accessed when creating the tasks
 time_unit = 0
@@ -57,31 +36,14 @@ tasks: Dict[str, Task] = {}
 #global variable for jobs
 jobs: List[Job] = []
 
-computation_times = []
 
 """
-This line will trigger an error with non-numeric values, so we cannot use this due to the first column of the csv (string).
-I had to comment the rest of the code that was not related to the simulator because I was getting a lot of errors related to this
-line when running the code, and I did not have the time to fix it (and all the other code is referencing it). 
-This line I know it will cause errors because of the column with strings, but the rest of the code is probably ok, I just
-commented it so I could test the simulator without these compilation errors.
-
-I don't think that the simulator is working 100% correctly at the moment, but I haven't been able to figure out whats wrong.
-However, I believe this implementation should be correct for the most part, and only needs small changes to work ok.
-
-UPDATE: uncommented this since I realized this will actually work, but I had to change data is loaded into here, or else it will have
-conflicts when launching vss_main, since it takes no sys args. This is just a temp solution, and the code itself is still broken by
-my changes, but I won't change anything else until further discussion
-"""
-data = None
-
-"""
-Responsible for handling the simulation is run using the information contained on the specified file
+Responsible for handling the VSS simulation is run using the information contained on the specified file
 """
 def run_vss(file_name: str, sim_time: int, time_unit: float):
     global current_time
 
-    print("Running simulation for " + file_name)
+    print("Running VSS simulation for " + file_name)
 
     #set the global variable for the time_unit
     globals()["time_unit"] = time_unit
@@ -224,47 +186,56 @@ def gen_random_comp_time(job : Job) -> float:
     #get the corresponding task
     task = tasks.get(job.task_id)
     
+    return gen_random_comp_time_task(task)
+    
+
+"""
+Generates random computation time for a task
+"""
+def gen_random_comp_time_task(task: Task) -> float:
     #calculate computation time with a random value between bcet and wcet using time_unit intervals
     rd_values = [task.bcet + i * time_unit for i in range(int((task.wcet - task.bcet) // time_unit) + 1)]
     return random.choice(rd_values)
 
-def gen_random_comp_rta():
-    global data
+"""
+Responsible for handling the RTA simulation is run using the information contained on the specified file
+"""
+def run_rta(file_name: str):
+    #set time_unit to 1 to ensure generation of comp time works without errors
+    global time_unit
+    time_unit = 1
 
-    for i in range(len(data)):
-        if int(data[i,1]) == int(data[i,0]):
-            computation_times.append(int(data[i,1]))
-        else:
-            #Switched the values here compared to main because you are starting at WCET and stoping at BECT which outputs an error
-            computation_times.append(random.randrange(int(data[i,0]),int(data[i,1]),1))
-    
-
-def RTA_analysis(set):
-    wcrt = []
     interference = 0
+    task_comp_times = {}
 
-    #   RTA algorithm
-    for i in range(len(set.priority_order)):
-        task = set.priority_order[i]
-        ri = set.task_list[task].comp_time / (1 - interference)
+    print("Running RTA simulation for " + file_name)
 
-        if ri > set.task_list[task].deadline:
-            wcrt.append(math.ceil(-1.0))
-            return wcrt
+    #create tasks from csv
+    initialize_tasks(pd.read_csv(file_name))
+
+    #generate random comp times for each task
+    for task in tasks.values():
+        task_comp_times[task.id] = gen_random_comp_time_task(task)
+
+    #sort tasks by priority
+    sorted_tasks = dict(sorted(tasks.items(), key=lambda item: item[1].priority))
+
+     #   RTA algorithm
+    for task in sorted_tasks.values():
+        ri = task_comp_times.get(task.id) / (1 - interference)
+
+        if ri > task.deadline:
+            task.wcrt =math.ceil(-1.0)
+            pass
         
-        wcrt.append(math.ceil(ri))
-        interference += (set.task_list[task].comp_time/set.task_list[task].deadline)
-    return wcrt
+        task.wcrt = math.ceil(ri)
+        interference += (task_comp_times.get(task.id)/task.deadline)
 
-def run_RTA(input):
-    global data
-    data = input
-    random.seed()
-    gen_random_comp_rta()
+    #append the results to the txt file
+    with open("results-RTA.txt", "a") as file:
+        file.write("RTA Simulation results for application model in " + file_name + "\n")
 
-    #   Set creation
-    set1 = TaskSet()
+        for key, value in tasks.items():
+            file.write(key + ": " + str(value.wcrt) + "\n")
 
-    #   RTA call
-    wcrt_rta = RTA_analysis(set1)
-    print(wcrt_rta)
+        file.write("\n\n")    

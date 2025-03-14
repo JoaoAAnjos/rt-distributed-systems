@@ -1,6 +1,6 @@
 import exercise as ex
 
-#Simulator start
+#VSS start
 print("""
 ===========================================
       Very Simple Simulator (VSS) 
