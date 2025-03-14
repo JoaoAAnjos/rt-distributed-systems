@@ -2,18 +2,18 @@ import exercise as ex
 
 #Simulator start
 print("""
-=========================================
-      Very Simple Simulator (VSS)
-=========================================
+=======================================================
+      Very Simple Simulator (VSS) / RTA algorithm
+=======================================================
       
 The simulator takes as input the application model consisting of a set of hypothetical tasks stored 
 in a csv file and the simulation time. The output is a list of worst-case response times (WCRT) 
-observed during the simulation for each task.
+observed during the simulation for each task, for both simulation methods used, the VSS and the RTA algorithm.
 
 This simulator expects the csv file to contain 6 columns, in the following order:
 -Task identifier
--Worst case execution time (WCET)
 -Best case execution time (BCET)
+-Worst case execution time (WCET)
 -Period
 -Deadline
 -Priority
