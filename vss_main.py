@@ -44,7 +44,7 @@ csv_files = [file_name.strip() for file_name in csv_input.split(",")]
 sim_time = int(input("Input the desired simulation time:"))
 
 #ask for time unit value and store it
-time_unit = int(input("Input the desired time unit:"))
+time_unit = float(input("Input the desired time unit:"))
 
 #run the simulations
 for file_name in csv_files:
