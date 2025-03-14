@@ -21,16 +21,13 @@ class Task:
         self.priority = priority
         #initialize it as -1 since this will be calculated by the simulator
         self.wcrt = -1
-        #initialize computation time with a random value between bcet and wcet using time_unit intervals
-        rd_values = [bcet + i * time_unit for i in range(int((wcet - bcet) // time_unit) + 1)]
-        self.comp_time = random.choice(rd_values)
 
 class Job:
-    def __init__(self, task_id: str, comp_time: int):
+    def __init__(self, task_id: str):
         self.task_id = task_id
-        self.exec_time = comp_time
         self.release_time = 0
         self.is_ready = True
+        self.exec_time = gen_random_comp_time(self)
     
 #   Set of tasks: defined from 'data'
 class TaskSet:
@@ -127,16 +124,14 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
         
         current_time += time_unit
 
-    #output the results to the txt file
-    with open("results.txt", "w") as file:
-        file.write("Simulation results for application model in " + file_name + "\n")
+    #append the results to the txt file
+    with open("results-VSS.txt", "a") as file:
+        file.write("VSS Simulation results for application model in " + file_name + "\n")
 
         for key, value in tasks.items():
             file.write(key + ": " + str(value.wcrt) + "\n")
 
-        file.write("\n\n")
-
-    print("Simulation complete. Results have been outputed to results.txt")
+        file.write("\n\n")    
     
 
 """
@@ -169,11 +164,11 @@ def initialize_jobs():
 
     for task in tasks.values():
         job = Job(
-            task.id,
-            task.comp_time
+            task.id
         )
 
         jobs.append(job)
+
 
 """
 This function checks if a task needs to be activated. If a job has been executed inside its deadline, 
@@ -197,10 +192,11 @@ def activate_task_jobs():
                 if int(current_time)%task.period == 0:
                     #activate task job. Reset the values relevant for job execution
                     job.is_ready = True
-                    job.exec_time = task.comp_time
+                    job.exec_time = gen_random_comp_time(job)
                     job.release_time = 0
             else:
                 print("Corresponding Task for the job was not found. Something is wrong in the simulators execution.")
+
 
 """
 For the jobs that are ready, returns the one with the highest priority (i.e. whose corresponding task has the
@@ -221,7 +217,18 @@ def highest_priority_ready_job() -> Job:
 
     return result
 
-def gen_random_comp():
+"""
+Generates random computation time for a job
+"""
+def gen_random_comp_time(job : Job) -> float:
+    #get the corresponding task
+    task = tasks.get(job.task_id)
+    
+    #calculate computation time with a random value between bcet and wcet using time_unit intervals
+    rd_values = [task.bcet + i * time_unit for i in range(int((task.wcet - task.bcet) // time_unit) + 1)]
+    return random.choice(rd_values)
+
+def gen_random_comp_rta():
     global data
 
     for i in range(len(data)):
@@ -253,7 +260,7 @@ def run_RTA(input):
     global data
     data = input
     random.seed()
-    gen_random_comp()
+    gen_random_comp_rta()
 
     #   Set creation
     set1 = TaskSet()
