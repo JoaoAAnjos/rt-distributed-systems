@@ -1,0 +1,13 @@
+Simulation results for application model in UFUUP.csv
+Task_0: 6.0
+Task_1: 33.0
+Task_2: 7.0
+Task_3: 10.0
+Task_4: 15.0
+Task_5: 26.0
+Task_6: 68.0
+Task_7: 2.0
+Task_8: 7.0
+Task_9: -1
+
+
