@@ -193,8 +193,6 @@ def activate_task_jobs():
 
             if task:
                 
-                a = current_time
-                b = 2
                 #cast to int to ensure that when working with float time_unit it still catches the period activation
                 if int(current_time)%task.period == 0:
                     #activate task job. Reset the values relevant for job execution
