@@ -205,38 +205,40 @@ def run_rta(file_name: str):
     #create tasks from csv
     initialize_tasks(pd.read_csv(file_name))
 
-    #sort tasks by priority. In Rate Monotonic the priority is defined by the period
+    #sort tasks by priority. In Rate Monotonic the priority is defined by the period (shorter period = larger priority)
     #Question for the TA's: how to account for other priorities
-    sorted_tasks = dict(sorted(tasks.items(), key=lambda item: item[1].period))
+    sorted_tasks_dict = dict(sorted(tasks.items(), key=lambda item: item[1].period))
+
+    #Extract values to list to iterate by index easier
+    sorted_tasks = list(sorted_tasks_dict.values())
 
      #   RTA algorithm
-    for task in sorted_tasks.values():
+    for i in range(len(sorted_tasks)):
 
-        R = task.wcet  
+        task = sorted_tasks[i]
+
+        R = 0  
         R_old = 0
+        interference = 0
 
-        while True: 
+        while True:
+            R_old = R
+            R = interference + task.wcet
+
+            #Break if unschedulable
+            if R > task.deadline:
+                R = -1
+                break
+                       
+            #Calculate interference from higher priority tasks
             interference = 0
-            
-            # Calculate interference from higher priority tasks
-            for higher_priority_task in sorted_tasks.values():
-                
-                # or based on task order in sorted_tasks_list 
-                if higher_priority_task.period < task.period: 
-                    interference += math.ceil(R / higher_priority_task.period) * higher_priority_task.wcet
 
-            R_new = task.wcet + interference
+            for j in range(i): 
+                interference += math.ceil(R / sorted_tasks[j].period) * sorted_tasks[j].wcet
 
-            # Convergence
-            if R_new <= R_old: 
-                R = R_new
+            #The task is schedulable and R contains the theoretical wcrt value
+            if R == R_old: 
                 break
-            # Unschedulable
-            if R_new > task.deadline: 
-                R = -1  
-                break
-            R_old = R_new
-            R = R_new
 
         task.wcrt = math.ceil(R)
 
