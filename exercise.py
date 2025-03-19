@@ -200,35 +200,47 @@ def gen_random_comp_time_task(task: Task) -> float:
 Responsible for handling the RTA simulation is run using the information contained on the specified file
 """
 def run_rta(file_name: str):
-    #set time_unit to 1 to ensure generation of comp time works without errors
-    global time_unit
-    time_unit = 1
-
-    interference = 0
-    task_comp_times = {}
-
     print("Running RTA simulation for " + file_name)
-
+    
     #create tasks from csv
     initialize_tasks(pd.read_csv(file_name))
 
-    #generate random comp times for each task
-    for task in tasks.values():
-        task_comp_times[task.id] = gen_random_comp_time_task(task)
+    #sort tasks by priority. In Rate Monotonic the priority is defined by the period (shorter period = larger priority)
+    #Question for the TA's: how to account for other priorities
+    sorted_tasks_dict = dict(sorted(tasks.items(), key=lambda item: item[1].period))
 
-    #sort tasks by priority
-    sorted_tasks = dict(sorted(tasks.items(), key=lambda item: item[1].priority))
+    #Extract values to list to iterate by index easier
+    sorted_tasks = list(sorted_tasks_dict.values())
 
      #   RTA algorithm
-    for task in sorted_tasks.values():
-        ri = task_comp_times.get(task.id) / (1 - interference)
+    for i in range(len(sorted_tasks)):
 
-        if ri > task.deadline:
-            task.wcrt =math.ceil(-1.0)
-            pass
-        
-        task.wcrt = math.ceil(ri)
-        interference += (task_comp_times.get(task.id)/task.deadline)
+        task = sorted_tasks[i]
+
+        R = 0  
+        R_old = 0
+        interference = 0
+
+        while True:
+            R_old = R
+            R = interference + task.wcet
+
+            #Break if unschedulable
+            if R > task.deadline:
+                R = -1
+                break
+                       
+            #Calculate interference from higher priority tasks
+            interference = 0
+
+            for j in range(i): 
+                interference += math.ceil(R / sorted_tasks[j].period) * sorted_tasks[j].wcet
+
+            #The task is schedulable and R contains the theoretical wcrt value
+            if R <= R_old: 
+                break
+
+        task.wcrt = math.ceil(R)
 
     #append the results to the txt file
     with open("results-RTA.txt", "a") as file:
