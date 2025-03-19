@@ -237,7 +237,7 @@ def run_rta(file_name: str):
                 interference += math.ceil(R / sorted_tasks[j].period) * sorted_tasks[j].wcet
 
             #The task is schedulable and R contains the theoretical wcrt value
-            if R == R_old: 
+            if R <= R_old: 
                 break
 
         task.wcrt = math.ceil(R)
