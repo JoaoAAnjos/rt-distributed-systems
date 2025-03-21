@@ -165,14 +165,15 @@ highest priority)
 """
 def highest_priority_ready_job() -> Job:
     result = None
-    max_priority = 0
+    max_priority = math.inf
 
     for j in jobs:
 
         if j.is_ready:
             task = tasks.get(j.task_id)
 
-            if task.priority > max_priority:
+            #This seems misleading, but a smaller number in this column means a higher priority
+            if task.priority < max_priority:
                 result = j
                 max_priority = task.priority 
 
@@ -205,9 +206,8 @@ def run_rta(file_name: str):
     #create tasks from csv
     initialize_tasks(pd.read_csv(file_name))
 
-    #sort tasks by priority. In Rate Monotonic the priority is defined by the period (shorter period = larger priority)
-    #Question for the TA's: how to account for other priorities
-    sorted_tasks_dict = dict(sorted(tasks.items(), key=lambda item: item[1].period))
+    #sort tasks by priority. (Eg: In Rate Monotonic the priority is defined by the period, shorter period = larger priority)
+    sorted_tasks_dict = dict(sorted(tasks.items(), key=lambda item: item[1].priority))
 
     #Extract values to list to iterate by index easier
     sorted_tasks = list(sorted_tasks_dict.values())
