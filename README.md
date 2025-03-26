@@ -57,7 +57,7 @@ The project consists of the following files:
 
 4. Follow the prompts:
 
-- Specify the CSV file(s): Enter the name(s) of the CSV file(s) containing the task definitions. If multiple files are provided, separate them with commas (`,`).
+- Specify the CSV file: Enter the name of the CSV file containing the task definitions.
 
 - Input the desired simulation time: Enter the total simulation time (a positive integer).
 
@@ -77,7 +77,7 @@ python rta_main.py
 ```
 4. Follow the prompts:
 
-- Specify the CSV file(s): Enter the name(s) of the CSV file(s) containing the task definitions. If multiple files are provided, separate them with commas (`,`).
+- Specify the CSV file: Enter the name of the CSV file containing the task definitions.
 
 The results will be saved in `results-RTA.txt`.
 
