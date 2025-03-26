@@ -12,12 +12,14 @@ class Task:
         self.period = period
         self.deadline = deadline
         self.priority = priority
+        self.schedulable = None
         #initialize it as -1 since this will be calculated by the simulator
         self.wcrt = -1
 
 class Job:
-    def __init__(self, task_id: str):
+    def __init__(self, task_id: str, deadline: int):
         self.task_id = task_id
+        self.deadline = deadline
         self.release_time = 0
         self.is_ready = True
         self.exec_time = gen_random_comp_time(self)
@@ -64,13 +66,22 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
             
             #check if job has finished execution
             if current_job.exec_time <= 0:
-                #calculate response time and save it if its the worst observed
+                #calculate response time 
                 response_time = current_time - current_job.release_time
                 task = tasks.get(current_job.task_id)
-                
-                if task.wcrt < response_time:
-                    task.wcrt = response_time
-                
+
+                #Determine the first time a task's job is completed if it missed previous deadlines
+                if (task.schedulable is None):
+                    task.schedulable = current_time <= current_job.deadline
+
+                #If task hasnt been considered unschedulable before, and current time is lesser or equal to the deadline, save WCRT value
+                if task.schedulable and current_time <= current_job.deadline: 
+                    if task.wcrt < response_time:
+                        task.wcrt = response_time
+                else:
+                    task.schedulable = False
+                    task.wcrt = -1
+
                 #set the task as completed
                 current_job.is_ready = False
 
@@ -109,11 +120,12 @@ Initialize the jobs for each task
 """
 def initialize_jobs():
     #ensure the list is clean if running more than one simulation
-    jobs.clear
+    jobs.clear()
 
     for task in tasks.values():
         job = Job(
-            task.id
+            task.id,
+            task.deadline
         )
 
         jobs.append(job)
@@ -141,6 +153,7 @@ def activate_task_jobs():
                     #activate task job. Reset the values relevant for job execution
                     job.is_ready = True
                     job.exec_time = gen_random_comp_time(job)
+                    job.deadline += task.deadline
                     job.release_time = 0
             else:
                 print("Corresponding Task for the job was not found. Something is wrong in the simulators execution.")
