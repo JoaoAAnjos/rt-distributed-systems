@@ -80,13 +80,7 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
         current_time += time_unit
 
     #append the results to the txt file
-    with open("results-VSS.txt", "a") as file:
-        file.write("VSS Simulation results for application model in " + file_name + "\n")
-
-        for key, value in tasks.items():
-            file.write(key + ": " + str(value.wcrt) + "\n")
-
-        file.write("\n\n")    
+    output_results("VSS", file_name)    
     
 
 """
@@ -236,10 +230,29 @@ def run_rta(file_name: str):
         task.wcrt = math.ceil(R)
 
     #append the results to the txt file
-    with open("results-RTA.txt", "a") as file:
-        file.write("RTA Simulation results for application model in " + file_name + "\n")
+    output_results("RTA", file_name)
+
+"""
+Outputs the results of the analysis, or the simulation, into a txt file depending on the results origin (either RTA or VSS),
+printing at the end of the results if the task set is schedulable or unschedulable.
+"""
+def output_results(res_origin: str, app_model: str):
+    output_file = "results-" + res_origin + ".txt"
+
+    schedulable = True
+
+    #append the results to the txt file
+    with open(output_file, "a") as file:
+        file.write(res_origin +" Simulation results for application model in " + app_model + "\n\n")
 
         for key, value in tasks.items():
             file.write(key + ": " + str(value.wcrt) + "\n")
+            if ( schedulable and value.wcrt == -1):
+                schedulable = False
+            
+        
+        sched_result = "schedulable" if schedulable else "unschedulable" 
 
-        file.write("\n\n")    
+        file.write("\nAccording to the results, this taskset is " + sched_result + "\n")
+
+        file.write("\n\n")      
