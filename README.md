@@ -110,20 +110,30 @@ T3,1,2,30,30,3
 - **results-VSS.txt**: Contains the worst-case response times (WCRT) observed during the VSS simulation for each task.
 - **results-RTA.txt**: Contains the worst-case response times (WCRT) calculated by the RTA analysis for each task.
 
+**Note**: In both outputs, a WCRT of `-1` means the task cannot meet its deadline under the given scheduling constraints.
+
 Example output (`results-VSS.txt`):
 ````
 VSS Simulation results for application model in tasks.csv
+
 T1: 3
-T2: 6
+T2: -1  # Unschedulable (misses deadline)
 T3: 5
+
+According to the results, this taskset is unschedulable
 ````
 Example output (`results-RTA.txt`):
 ````
 RTA Simulation results for application model in tasks.csv
+
 T1: 3
 T2: 7
 T3: 5
+
+According to the results, this taskset is schedulable
 ````
+
+
 ## Example
 ### Running VSS
 
