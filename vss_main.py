@@ -6,8 +6,8 @@ print("""
       Very Simple Simulator (VSS) 
 ===========================================
       
-The simulator takes as input the application model consisting of a set of hypothetical tasks stored 
-in a csv file and the simulation time. The output is a list of worst-case response times (WCRT) 
+The simulator takes as input an application model consisting of a set of hypothetical tasks stored 
+in a csv file and a simulation time. The output is a list of worst-case response times (WCRT) 
 observed during the simulation for each task.
 
 This simulator expects the csv file to contain 6 columns, in the following order:
@@ -35,7 +35,6 @@ The simulator will apply its logic for (simulation time / time unit) amount of t
 If multiple csv files were passed, the same simulation time and time unit will be used for each simulation.
       
 The simulator will print the results to a txt file called 'results-VSS' 
-(this can be improved, for example, by adding a column to the CSV)
 """)
 
 #clean results.txt file

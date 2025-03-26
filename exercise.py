@@ -1,7 +1,3 @@
-#   File to implement three functions/processes:
-#       1. VSS Simulator
-#       2. RTA Analysis
-#       3. (previous to both) Response-time generator for tasks
 import pandas as pd
 import random
 import math
@@ -56,8 +52,6 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
     #reset the current time if running more than one simulation
     current_time = 0.0
 
-    #I've done the loop only with the first condition the teacher suggested because I still do not
-    #understand completely the second part of the loop. Please get some clarification from the TA's
     while current_time <= sim_time:
         activate_task_jobs()
 
@@ -137,7 +131,6 @@ it needs to be activated again when its period is reached, so it can be executed
 this code, this is achieved by setting the is_ready flag inside the task's job to True, so it can be picked
 up when assembling the ready jobs list. Only jobs that have been executed inside their deadline need this,
 as jobs who have not still need to finish their execution, so they still have the flag is_ready set to true
-(at least I think so, maybe confirm with TA's).
 """
 def activate_task_jobs():
     for job in jobs:
@@ -212,7 +205,7 @@ def run_rta(file_name: str):
     #Extract values to list to iterate by index easier
     sorted_tasks = list(sorted_tasks_dict.values())
 
-     #   RTA algorithm
+    #RTA algorithm
     for i in range(len(sorted_tasks)):
 
         task = sorted_tasks[i]
