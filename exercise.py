@@ -17,12 +17,14 @@ class Task:
         self.wcrt = -1
 
 class Job:
-    def __init__(self, task_id: str, deadline: int):
+    def __init__(self, task_id: str, release_time: float):
         self.task_id = task_id
-        self.deadline = deadline
-        self.release_time = 0
+        self.release_time = release_time
+        task = tasks[task_id]
+        self.abs_deadline = release_time + task.deadline
         self.is_ready = True
-        self.exec_time = gen_random_comp_time(self)
+        self.exec_time = 0
+        self.abs_deadline = 0
 
 
 #global variable so it can be accessed when creating the tasks
@@ -55,43 +57,37 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
     current_time = 0.0
 
     while current_time <= sim_time:
-        activate_task_jobs()
-
-        current_job = highest_priority_ready_job()
-
-        if current_job:
-            #set the release time if it hasn't been set yet
-            if current_job.release_time == 0:
-                current_job.release_time = current_time
+        activate_task_jobs()  # Only handles reactivations now
+        
+        ready_jobs = [j for j in jobs 
+                     if j.is_ready and j.release_time <= current_time]
+        
+        if ready_jobs:
+            current_job = min(ready_jobs, 
+                            key=lambda j: tasks[j.task_id].priority)
             
-            #check if job has finished execution
-            if current_job.exec_time <= 0:
-                #calculate response time 
-                response_time = current_time - current_job.release_time
-                task = tasks.get(current_job.task_id)
-
-                #Determine the first time a task's job is completed if it missed previous deadlines
-                if (task.schedulable is None):
-                    task.schedulable = current_time <= current_job.deadline
-
-                #If task hasnt been considered unschedulable before, and current time is lesser or equal to the deadline, save WCRT value
-                if task.schedulable and current_time <= current_job.deadline: 
-                    if task.wcrt < response_time:
-                        task.wcrt = response_time
-                else:
-                    task.schedulable = False
-                    task.wcrt = -1
-
-                #set the task as completed
-                current_job.is_ready = False
-
-            #decrease the remaining execution time on the job
+            # Execute job
             current_job.exec_time -= time_unit
+            
+            # Check completion
+            if current_job.exec_time <= 0:
+                response_time = current_time - current_job.release_time
+                task = tasks[current_job.task_id]
+                
+                if current_time <= current_job.abs_deadline:
+                    task.wcrt = max(task.wcrt, response_time)
+                else:
+                    print(f"Deadline miss for {task.id} at {current_time}")
+                
+                current_job.is_ready = False
         
         current_time += time_unit
 
-    #append the results to the txt file
-    output_results("VSS", file_name)    
+    # Final schedulability check
+    for task in tasks.values():
+        task.schedulable = (task.wcrt != -1) and (task.wcrt <= task.deadline)
+
+    output_results("VSS", file_name)
     
 
 """
@@ -121,13 +117,11 @@ Initialize the jobs for each task
 def initialize_jobs():
     #ensure the list is clean if running more than one simulation
     jobs.clear()
-
     for task in tasks.values():
-        job = Job(
-            task.id,
-            task.deadline
-        )
-
+        # Only create the first job for each task
+        job = Job(task.id, 0)  # First release at time 0
+        job.abs_deadline = task.deadline  # Relative deadline
+        job.exec_time = gen_random_comp_time_task(task)
         jobs.append(job)
 
 
@@ -139,24 +133,15 @@ up when assembling the ready jobs list. Only jobs that have been executed inside
 as jobs who have not still need to finish their execution, so they still have the flag is_ready set to true
 """
 def activate_task_jobs():
-    for job in jobs:
-
+    for job in list(jobs):
         if not job.is_ready:
-
-            #grab corresponding task
-            task = tasks.get(job.task_id)
-
-            if task:
-                
-                #cast to int to ensure that when working with float time_unit it still catches the period activation
-                if int(current_time)%task.period == 0:
-                    #activate task job. Reset the values relevant for job execution
-                    job.is_ready = True
-                    job.exec_time = gen_random_comp_time(job)
-                    job.deadline += task.deadline
-                    job.release_time = 0
-            else:
-                print("Corresponding Task for the job was not found. Something is wrong in the simulators execution.")
+            task = tasks[job.task_id]
+            # Reactivate at next period if current time matches activation point
+            if abs(current_time - (job.release_time + task.period)) < 1e-6:
+                new_job = Job(task.id, current_time)
+                new_job.abs_deadline = current_time + task.deadline
+                new_job.exec_time = gen_random_comp_time_task(task)
+                jobs.append(new_job)
 
 
 """
