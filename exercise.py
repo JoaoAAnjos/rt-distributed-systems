@@ -57,7 +57,7 @@ class Task:
         self.period = period
         self.deadline = deadline
         self.priority = priority
-        self.schedulable = None
+        self.schedulable = True
         #initialize it as -1 since this will be calculated by the simulator
         self.wcrt = -1
 
@@ -120,17 +120,16 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                 task = tasks[current_job.task_id]
                 deadline_met = current_time <= current_job.abs_deadline
                 
-                if deadline_met:
+                if task.schedulable and deadline_met:
                     task.wcrt = max(task.wcrt, response_time)
-                else:
+                elif task.schedulable:
                     task.schedulable = False
-                    task.wcrt = -1
+                    task.wcrt = response_time
                     
                 logger.log_job_completion(
                     current_job, current_time, deadline_met, task.wcrt
                 )
                 current_job.is_ready = False
-                jobs.remove(current_job)
             
         current_time += time_unit
 
@@ -243,7 +242,7 @@ def run_rta(file_name: str):
 
             #Break if unschedulable
             if R > task.deadline:
-                R = -1
+                task.schedulable = False
                 break
                        
             #Calculate interference from higher priority tasks
@@ -268,19 +267,20 @@ printing at the end of the results if the task set is schedulable or unschedulab
 def output_results(res_origin: str, app_model: str):
     output_file = "results-" + res_origin + ".txt"
 
-    schedulable = True
+    schedulable_taskset = True
 
     #append the results to the txt file
     with open(output_file, "a") as file:
         file.write(res_origin +" Simulation results for application model in " + app_model + "\n\n")
 
         for key, value in tasks.items():
-            file.write(key + ": " + str(value.wcrt) + "\n")
-            if ( schedulable and value.wcrt == -1):
-                schedulable = False
+            file.write("Task_id: "+ key + " | WCRT : " + str(value.wcrt) + " | Deadline: " + 
+                       str(value.deadline) + " | Schedulable: "+str(value.schedulable)+"\n")
+            if ( schedulable_taskset and (not value.schedulable or value.wcrt == -1)):
+                schedulable_taskset = False
             
         
-        sched_result = "schedulable" if schedulable else "unschedulable" 
+        sched_result = "schedulable" if schedulable_taskset else "unschedulable" 
 
         file.write("\nAccording to the results, this taskset is " + sched_result + "\n")
 
