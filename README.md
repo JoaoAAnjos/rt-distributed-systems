@@ -20,13 +20,12 @@ Both simulators take as input a CSV file containing task definitions and output 
 - Python 3.x
 - Required Python libraries:
   - `pandas`
-  - `numpy`
   - `random`
   - `math`
 
 You can install the required libraries using pip:
 ```bash
-pip install pandas numpy
+pip install pandas
 ```
 
 ## File Structure
@@ -57,7 +56,7 @@ The project consists of the following files:
 
 4. Follow the prompts:
 
-- Specify the CSV file: Enter the name of the CSV file containing the task definitions.
+- Specify the CSV file(s): Enter the name(s) of the CSV file(s) containing the task definitions. If multiple files are provided, separate them with commas (`,`).
 
 - Input the desired simulation time: Enter the total simulation time (a positive integer).
 
@@ -77,7 +76,7 @@ python rta_main.py
 ```
 4. Follow the prompts:
 
-- Specify the CSV file: Enter the name of the CSV file containing the task definitions.
+- Specify the CSV file(s): Enter the name(s) of the CSV file(s) containing the task definitions. If multiple files are provided, separate them with commas (`,`).
 
 The results will be saved in `results-RTA.txt`.
 
@@ -116,9 +115,9 @@ Example output (`results-VSS.txt`):
 ````
 VSS Simulation results for application model in tasks.csv
 
-T1: 3
-T2: -1  # Unschedulable (misses deadline)
-T3: 5
+Task_id: T1 | WCRT : 3.0 | Deadline: 10 | Schedulable: True
+Task_id: T2 | WCRT : 4.0 | Deadline: 20 | Schedulable: True
+Task_id: T3 | WCRT : 4.0 | Deadline: 30 | Schedulable: True
 
 According to the results, this taskset is unschedulable
 ````
@@ -126,11 +125,11 @@ Example output (`results-RTA.txt`):
 ````
 RTA Simulation results for application model in tasks.csv
 
-T1: 3
-T2: 7
-T3: 5
+Task_id: T1 | WCRT : 4 | Deadline: 10 | Schedulable: True
+Task_id: T2 | WCRT : 5 | Deadline: 4 | Schedulable: False
+Task_id: T3 | WCRT : 6 | Deadline: 20 | Schedulable: True
 
-According to the results, this taskset is schedulable
+According to the results, this taskset is unschedulable
 ````
 
 
@@ -146,7 +145,7 @@ According to the results, this taskset is schedulable
 3. Input the CSV file name, simulation time, and time unit:
 ````
 Specify the csv file(s) that contain the application model: tasks.csv
-Input the desired simulation time: 100
+Input the desired simulation time: 1000
 Input the desired time unit: 1.0
 ````
 4. Check the results in `results-VSS.txt`.
