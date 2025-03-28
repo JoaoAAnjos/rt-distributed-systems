@@ -4,6 +4,60 @@ import math
 
 from typing import Dict,List
 
+class SimulationLogger:
+    def __init__(self, log_file="simulation_log.txt"):
+        self.log_file = log_file
+        with open(self.log_file, 'w') as f:
+            f.write("=== Simulation Debug Log ===\n\n")
+
+    def log(self, message):
+        with open(self.log_file, 'a') as f:
+            f.write(message + "\n")
+
+    def log_time_step(self, current_time):
+        self.log(f"\n=== Time: {current_time:.2f} ===")
+
+    def log_job_states(self, jobs):
+        self.log("Current Job States:")
+        for j in jobs:
+            status = "READY" if j.is_ready else "DONE"
+            self.log(
+                f"  Task {j.task_id}: Release={j.release_time:.2f}, "
+                f"Deadline={j.abs_deadline:.2f}, ET={j.exec_time:.2f} ({status})"
+            )
+
+    def log_ready_jobs(self, ready_jobs, tasks, current_time):
+        self.log(f"\nReady jobs at {current_time:.2f}:")
+        for j in ready_jobs:
+            self.log(
+                f"  Task {j.task_id} (Prio={tasks[j.task_id].priority}): "
+                f"ET_left={j.exec_time:.2f}"
+            )
+
+    def log_job_execution(self, current_job, tasks):
+        self.log(
+            f"\nExecuting: Task {current_job.task_id} "
+            f"(Prio={tasks[current_job.task_id].priority})"
+        )
+        self.log(f"  Remaining ET: {current_job.exec_time:.2f}")
+
+    def log_job_completion(self, current_job, current_time, deadline_met, wcrt):
+        response_time = current_time - current_job.release_time
+        if deadline_met:
+            wcrt_str = f"{wcrt:.2f}" if wcrt is not None else "N/A"
+            self.log(
+                f"  COMPLETED ON TIME: RT={response_time:.2f}, "
+                f"WCRT={wcrt_str}"
+            )
+        else:
+            self.log(
+                f"  DEADLINE MISSED! (Deadline={current_job.abs_deadline:.2f}, "
+                f"Completion={current_time:.2f})"
+            )
+
+    def log_new_job(self, task_id, release_time):
+        self.log(f"  NEW JOB ACTIVATED: Task {task_id} at {release_time:.2f}")
+        
 class Task:
     def __init__(self, id: str, wcet: int, bcet: int, period: int, deadline: int, priority: int):
         self.id = id
@@ -35,6 +89,8 @@ current_time = 0.0
 tasks: Dict[str, Task] = {}
 #global variable for jobs
 jobs: List[Job] = []
+# Create a debugger instance
+logger = SimulationLogger()
 
 """
 Responsible for handling the VSS simulation is run using the information contained on the specified file
@@ -57,30 +113,36 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
     current_time = 0.0
 
     while current_time <= sim_time:
-        activate_task_jobs()  # Only handles reactivations now
+        logger.log_time_step(current_time)
+        logger.log_job_states(jobs)
         
-        ready_jobs = [j for j in jobs 
-                     if j.is_ready and j.release_time <= current_time]
+        activate_task_jobs()
+        
+        ready_jobs = [j for j in jobs if j.is_ready and j.release_time <= current_time]
+        logger.log_ready_jobs(ready_jobs, tasks, current_time)
         
         if ready_jobs:
-            current_job = min(ready_jobs, 
-                            key=lambda j: tasks[j.task_id].priority)
+            current_job = min(ready_jobs, key=lambda j: tasks[j.task_id].priority)
+            logger.log_job_execution(current_job, tasks)
             
-            # Execute job
             current_job.exec_time -= time_unit
             
-            # Check completion
             if current_job.exec_time <= 0:
                 response_time = current_time - current_job.release_time
                 task = tasks[current_job.task_id]
+                deadline_met = current_time <= current_job.abs_deadline
                 
-                if current_time <= current_job.abs_deadline:
+                if deadline_met:
                     task.wcrt = max(task.wcrt, response_time)
                 else:
-                    print(f"Deadline miss for {task.id} at {current_time}")
-                
+                    task.schedulable = False
+                    task.wcrt = -1
+                    
+                logger.log_job_completion(
+                    current_job, current_time, deadline_met, task.wcrt
+                )
                 current_job.is_ready = False
-        
+            
         current_time += time_unit
 
     # Final schedulability check
@@ -138,6 +200,7 @@ def activate_task_jobs():
             task = tasks[job.task_id]
             # Reactivate at next period if current time matches activation point
             if abs(current_time - (job.release_time + task.period)) < 1e-6:
+                logger.log_new_job(task.id, current_time)
                 new_job = Job(task.id, current_time)
                 new_job.abs_deadline = current_time + task.deadline
                 new_job.exec_time = gen_random_comp_time_task(task)
