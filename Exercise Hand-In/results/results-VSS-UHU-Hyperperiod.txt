@@ -1,0 +1,16 @@
+VSS Simulation results for application model in UHU.csv
+
+Task_id: Task_0 | WCRT : 0.0 | Deadline: 10 | Schedulable: True
+Task_id: Task_1 | WCRT : 28.0 | Deadline: 100 | Schedulable: True
+Task_id: Task_2 | WCRT : 1.0 | Deadline: 20 | Schedulable: True
+Task_id: Task_3 | WCRT : 8.0 | Deadline: 40 | Schedulable: True
+Task_id: Task_4 | WCRT : 64.0 | Deadline: 139 | Schedulable: True
+Task_id: Task_5 | WCRT : 6.0 | Deadline: 30 | Schedulable: True
+Task_id: Task_6 | WCRT : 47.0 | Deadline: 120 | Schedulable: True
+Task_id: Task_7 | WCRT : 3.0 | Deadline: 25 | Schedulable: True
+Task_id: Task_8 | WCRT : 13.0 | Deadline: 50 | Schedulable: True
+Task_id: Task_9 | WCRT : 84.0 | Deadline: 149 | Schedulable: True
+
+According to the results, this taskset is schedulable
+
+

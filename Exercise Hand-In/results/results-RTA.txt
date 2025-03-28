@@ -1,0 +1,125 @@
+RTA Simulation results for application model in LU.csv
+
+Task_id: Task_0 | WCRT : 2 | Deadline: 100 | Schedulable: True
+Task_id: Task_1 | WCRT : 4 | Deadline: 200 | Schedulable: True
+Task_id: Task_2 | WCRT : 7 | Deadline: 300 | Schedulable: True
+Task_id: Task_3 | WCRT : 42 | Deadline: 900 | Schedulable: True
+Task_id: Task_4 | WCRT : 1 | Deadline: 50 | Schedulable: True
+Task_id: Task_5 | WCRT : 120 | Deadline: 2700 | Schedulable: True
+Task_id: Task_6 | WCRT : 11 | Deadline: 400 | Schedulable: True
+Task_id: Task_7 | WCRT : 215 | Deadline: 5400 | Schedulable: True
+Task_id: Task_8 | WCRT : 17 | Deadline: 600 | Schedulable: True
+Task_id: Task_9 | WCRT : 55 | Deadline: 1200 | Schedulable: True
+Task_id: Task_10 | WCRT : 384 | Deadline: 8100 | Schedulable: True
+Task_id: Task_11 | WCRT : 33 | Deadline: 800 | Schedulable: True
+Task_id: Task_12 | WCRT : 91 | Deadline: 1800 | Schedulable: True
+Task_id: Task_13 | WCRT : 157 | Deadline: 3600 | Schedulable: True
+Task_id: Task_14 | WCRT : 736 | Deadline: 16200 | Schedulable: True
+
+According to the results, this taskset is schedulable
+
+
+RTA Simulation results for application model in MU.csv
+
+Task_id: Task_0 | WCRT : 9 | Deadline: 100 | Schedulable: True
+Task_id: Task_1 | WCRT : 1 | Deadline: 20 | Schedulable: True
+Task_id: Task_2 | WCRT : 3 | Deadline: 50 | Schedulable: True
+Task_id: Task_3 | WCRT : 20 | Deadline: 200 | Schedulable: True
+Task_id: Task_4 | WCRT : 18 | Deadline: 150 | Schedulable: True
+Task_id: Task_5 | WCRT : 2 | Deadline: 25 | Schedulable: True
+Task_id: Task_6 | WCRT : 83 | Deadline: 600 | Schedulable: True
+Task_id: Task_7 | WCRT : 72 | Deadline: 450 | Schedulable: True
+Task_id: Task_8 | WCRT : 37 | Deadline: 300 | Schedulable: True
+Task_id: Task_9 | WCRT : 178 | Deadline: 900 | Schedulable: True
+Task_id: Task_10 | WCRT : 278 | Deadline: 1800 | Schedulable: True
+Task_id: Task_11 | WCRT : 874 | Deadline: 5400 | Schedulable: True
+Task_id: Task_12 | WCRT : 6 | Deadline: 75 | Schedulable: True
+Task_id: Task_13 | WCRT : 436 | Deadline: 2700 | Schedulable: True
+Task_id: Task_14 | WCRT : 42 | Deadline: 400 | Schedulable: True
+Task_id: Task_15 | WCRT : 1777 | Deadline: 8100 | Schedulable: True
+Task_id: Task_16 | WCRT : 31 | Deadline: 225 | Schedulable: True
+Task_id: Task_17 | WCRT : 537 | Deadline: 3600 | Schedulable: True
+Task_id: Task_18 | WCRT : 2997 | Deadline: 10800 | Schedulable: True
+Task_id: Task_19 | WCRT : 99 | Deadline: 800 | Schedulable: True
+
+According to the results, this taskset is schedulable
+
+
+RTA Simulation results for application model in OU.csv
+
+Task_id: Task_0 | WCRT : 1 | Deadline: 10 | Schedulable: True
+Task_id: Task_1 | WCRT : 2 | Deadline: 20 | Schedulable: True
+Task_id: Task_2 | WCRT : 13 | Deadline: 100 | Schedulable: True
+Task_id: Task_3 | WCRT : 48 | Deadline: 200 | Schedulable: True
+Task_id: Task_4 | WCRT : 134 | Deadline: 400 | Schedulable: True
+Task_id: Task_5 | WCRT : 12 | Deadline: 50 | Schedulable: True
+Task_id: Task_6 | WCRT : 3 | Deadline: 25 | Schedulable: True
+Task_id: Task_7 | WCRT : 265 | Deadline: 600 | Schedulable: True
+Task_id: Task_8 | WCRT : 19 | Deadline: 150 | Schedulable: True
+Task_id: Task_9 | WCRT : 85 | Deadline: 300 | Schedulable: True
+Task_id: Task_10 | WCRT : 533 | Deadline: 900 | Schedulable: True
+Task_id: Task_11 | WCRT : 1210 | Deadline: 1200 | Schedulable: False
+Task_id: Task_12 | WCRT : 3971 | Deadline: 3600 | Schedulable: False
+Task_id: Task_13 | WCRT : 8113 | Deadline: 7200 | Schedulable: False
+Task_id: Task_14 | WCRT : 2727 | Deadline: 2700 | Schedulable: False
+Task_id: Task_15 | WCRT : 1809 | Deadline: 1800 | Schedulable: False
+Task_id: Task_16 | WCRT : 8 | Deadline: 40 | Schedulable: True
+Task_id: Task_17 | WCRT : 13006 | Deadline: 10800 | Schedulable: False
+Task_id: Task_18 | WCRT : 6 | Deadline: 30 | Schedulable: True
+Task_id: Task_19 | WCRT : 290 | Deadline: 800 | Schedulable: True
+
+According to the results, this taskset is unschedulable
+
+
+RTA Simulation results for application model in UHU.csv
+
+Task_id: Task_0 | WCRT : 1 | Deadline: 10 | Schedulable: True
+Task_id: Task_1 | WCRT : 29 | Deadline: 100 | Schedulable: True
+Task_id: Task_2 | WCRT : 2 | Deadline: 20 | Schedulable: True
+Task_id: Task_3 | WCRT : 9 | Deadline: 40 | Schedulable: True
+Task_id: Task_4 | WCRT : 75 | Deadline: 139 | Schedulable: True
+Task_id: Task_5 | WCRT : 7 | Deadline: 30 | Schedulable: True
+Task_id: Task_6 | WCRT : 49 | Deadline: 120 | Schedulable: True
+Task_id: Task_7 | WCRT : 4 | Deadline: 25 | Schedulable: True
+Task_id: Task_8 | WCRT : 14 | Deadline: 50 | Schedulable: True
+Task_id: Task_9 | WCRT : 156 | Deadline: 149 | Schedulable: False
+
+According to the results, this taskset is unschedulable
+
+
+RTA Simulation results for application model in SHU.csv
+
+Task_id: Task_0 | WCRT : 6 | Deadline: 100 | Schedulable: True
+Task_id: Task_1 | WCRT : 33 | Deadline: 300 | Schedulable: True
+Task_id: Task_2 | WCRT : 2 | Deadline: 50 | Schedulable: True
+Task_id: Task_3 | WCRT : 1 | Deadline: 25 | Schedulable: True
+Task_id: Task_4 | WCRT : 14 | Deadline: 200 | Schedulable: True
+Task_id: Task_5 | WCRT : 69 | Deadline: 600 | Schedulable: True
+Task_id: Task_6 | WCRT : 5 | Deadline: 75 | Schedulable: True
+Task_id: Task_7 | WCRT : 12 | Deadline: 150 | Schedulable: True
+Task_id: Task_8 | WCRT : 138 | Deadline: 1200 | Schedulable: True
+Task_id: Task_9 | WCRT : 98 | Deadline: 900 | Schedulable: True
+Task_id: Task_10 | WCRT : 277 | Deadline: 1800 | Schedulable: True
+Task_id: Task_11 | WCRT : 57 | Deadline: 450 | Schedulable: True
+Task_id: Task_12 | WCRT : 209 | Deadline: 1350 | Schedulable: True
+Task_id: Task_13 | WCRT : 383 | Deadline: 2700 | Schedulable: True
+Task_id: Task_14 | WCRT : 547 | Deadline: 3600 | Schedulable: True
+Task_id: Task_15 | WCRT : 1545 | Deadline: 8100 | Schedulable: True
+Task_id: Task_16 | WCRT : 1169 | Deadline: 5400 | Schedulable: True
+Task_id: Task_17 | WCRT : 37 | Deadline: 400 | Schedulable: True
+Task_id: Task_18 | WCRT : 2245 | Deadline: 10800 | Schedulable: True
+Task_id: Task_19 | WCRT : 89 | Deadline: 800 | Schedulable: True
+Task_id: Task_20 | WCRT : 9283 | Deadline: 32400 | Schedulable: True
+Task_id: Task_21 | WCRT : 322 | Deadline: 2400 | Schedulable: True
+Task_id: Task_22 | WCRT : 23 | Deadline: 225 | Schedulable: True
+Task_id: Task_23 | WCRT : 779 | Deadline: 4050 | Schedulable: True
+Task_id: Task_24 | WCRT : 967 | Deadline: 4800 | Schedulable: True
+Task_id: Task_25 | WCRT : 2990 | Deadline: 16200 | Schedulable: True
+Task_id: Task_26 | WCRT : 225 | Deadline: 1600 | Schedulable: True
+Task_id: Task_27 | WCRT : 5167 | Deadline: 21600 | Schedulable: True
+Task_id: Task_28 | WCRT : 7184 | Deadline: 24300 | Schedulable: True
+Task_id: Task_29 | WCRT : 18545 | Deadline: 72900 | Schedulable: True
+
+According to the results, this taskset is schedulable
+
+
