@@ -59,28 +59,32 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
         current_job = highest_priority_ready_job()
 
         if current_job:
-            
-            #check if job has finished execution
-            if current_job.exec_time <= 0:
-                #calculate response time 
-                response_time = current_time - current_job.release_time
-                task = tasks.get(current_job.task_id)
-
-                #If task hasnt been considered unschedulable before, and current time is lesser or equal to the deadline, save WCRT value
-                if task.schedulable and current_time <= current_job.deadline: 
-                    if task.wcrt < response_time:
-                        task.wcrt = response_time
-                #Else, set as unschedulable
-                else:
-                    task.schedulable = False
-                    task.wcrt = -1
-
-                #set the task job as completed
-                jobs.remove(current_job)
 
             #decrease the remaining execution time on the job
             current_job.exec_time -= time_unit
+            
+            #check if job has finished execution
+            if current_job.exec_time <= 0:
+               
+                task = tasks.get(current_job.task_id)
+
+                #calculate response time 
+                response_time = current_time - current_job.release_time
+
+                #If task hasnt been considered unschedulable before, and current time is lesser or equal to the deadline, save WCRT value
+                if task.schedulable and current_time <= current_job.deadline:
+
+                    if task.wcrt < response_time:
+                        task.wcrt = response_time
+                #Else, set as unschedulable and record the WCRT value of when it misses the deadline
+                elif task.schedulable:
+                    task.schedulable = False
+                    task.wcrt = response_time
+
+                #set the task job as completed
+                jobs.remove(current_job)
         
+
         current_time += time_unit
 
     #append the results to the txt file
@@ -132,9 +136,9 @@ job is created for that task, and added to the active jobs list.
 def activate_task_jobs():
 
     for task in tasks.values():
-        
+
         #cast to int to ensure that when working with float time_unit it still catches the period activation
-        if int(current_time)%task.period == 0:
+        if current_time != 0 and int(current_time) % task.period == 0:
             job = Job(
                 task.id,
                 #jobs deadline is calculated based on the time where the job is released (current) and the tasks deadline
@@ -164,6 +168,7 @@ def highest_priority_ready_job() -> Job:
 
     return result
 
+
 """
 Generates random computation time for a job
 """
@@ -181,6 +186,7 @@ def gen_random_comp_time_task(task: Task) -> float:
     #calculate computation time with a random value between bcet and wcet using time_unit intervals
     rd_values = [task.bcet + i * time_unit for i in range(int((task.wcet - task.bcet) // time_unit) + 1)]
     return random.choice(rd_values)
+
 
 """
 Responsible for handling the RTA simulation is run using the information contained on the specified file
@@ -212,13 +218,13 @@ def run_rta(file_name: str):
 
             #Break if unschedulable
             if R > task.deadline:
-                R = -1
+                task.schedulable = False
                 break
                        
             #Calculate interference from higher priority tasks
             interference = 0
 
-            for j in range(i): 
+            for j in range(i):
                 interference += math.ceil(R / sorted_tasks[j].period) * sorted_tasks[j].wcet
 
             #The task is schedulable and R contains the theoretical wcrt value
@@ -230,6 +236,7 @@ def run_rta(file_name: str):
     #append the results to the txt file
     output_results("RTA", file_name)
 
+
 """
 Outputs the results of the analysis, or the simulation, into a txt file depending on the results origin (either RTA or VSS),
 printing at the end of the results if the task set is schedulable or unschedulable.
@@ -237,19 +244,20 @@ printing at the end of the results if the task set is schedulable or unschedulab
 def output_results(res_origin: str, app_model: str):
     output_file = "results-" + res_origin + ".txt"
 
-    schedulable = True
+    schedulable_taskset = True
 
     #append the results to the txt file
     with open(output_file, "a") as file:
         file.write(res_origin +" Simulation results for application model in " + app_model + "\n\n")
 
         for key, value in tasks.items():
-            file.write(key + ": " + str(value.wcrt) + "\n")
-            if ( schedulable and value.wcrt == -1):
-                schedulable = False
+            file.write("Task_id: "+ key + " | WCRT : " + str(value.wcrt) + " | Deadline: " + 
+                       str(value.deadline) + " | Schedulable: "+str(value.schedulable)+"\n")
+            if ( schedulable_taskset and (not value.schedulable or value.wcrt == -1)):
+                schedulable_taskset = False
             
         
-        sched_result = "schedulable" if schedulable else "unschedulable" 
+        sched_result = "schedulable" if schedulable_taskset else "unschedulable" 
 
         file.write("\nAccording to the results, this taskset is " + sched_result + "\n")
 
