@@ -17,15 +17,6 @@ class SimulationLogger:
     def log_time_step(self, current_time):
         self.log(f"\n=== Time: {current_time:.2f} ===")
 
-    def log_job_states(self, jobs):
-        self.log("Current Job States:")
-        for j in jobs:
-            status = "READY" if j.is_ready else "DONE"
-            self.log(
-                f"  Task {j.task_id}: Release={j.release_time:.2f}, "
-                f"Deadline={j.abs_deadline:.2f}, ET={j.exec_time:.2f} ({status})"
-            )
-
     def log_ready_jobs(self, ready_jobs, tasks, current_time):
         self.log(f"\nReady jobs at {current_time:.2f}:")
         for j in ready_jobs:
@@ -112,7 +103,6 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
 
     while current_time <= sim_time:
         logger.log_time_step(current_time)
-        logger.log_job_states(jobs)
         
         activate_task_jobs()
         
