@@ -60,9 +60,6 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
         current_job = highest_priority_ready_job()
 
         if current_job:
-
-            # Decrease the remaining execution time on the job
-            current_job.exec_time -= time_unit
             
             # Check if job has finished execution
             if current_job.exec_time <= 0:
@@ -83,9 +80,12 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                     task.schedulable = False
                     task.wcrt = response_time
 
+
                 # Set the task job as completed
                 jobs.remove(current_job)
         
+            # Decrease the remaining execution time on the job
+            current_job.exec_time -= time_unit
 
         current_time += time_unit
 
