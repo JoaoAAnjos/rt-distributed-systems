@@ -12,7 +12,7 @@ class Task:
         self.period = period
         self.deadline = deadline
         self.priority = priority
-        self.schedulable = None
+        self.schedulable = True
         #initialize it as -1 since this will be calculated by the simulator
         self.wcrt = -1
 
@@ -59,9 +59,6 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
         current_job = highest_priority_ready_job()
 
         if current_job:
-            #set the release time if it hasn't been set yet
-            if current_job.release_time == 0:
-                current_job.release_time = current_time
             
             #check if job has finished execution
             if current_job.exec_time <= 0:
@@ -69,14 +66,11 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                 response_time = current_time - current_job.release_time
                 task = tasks.get(current_job.task_id)
 
-                #Determine the first time a task's job is completed if it missed previous deadlines
-                if (task.schedulable is None):
-                    task.schedulable = current_time <= current_job.deadline
-
                 #If task hasnt been considered unschedulable before, and current time is lesser or equal to the deadline, save WCRT value
                 if task.schedulable and current_time <= current_job.deadline: 
                     if task.wcrt < response_time:
                         task.wcrt = response_time
+                #Else, set as unschedulable
                 else:
                     task.schedulable = False
                     task.wcrt = -1
@@ -143,7 +137,8 @@ def activate_task_jobs():
         if int(current_time)%task.period == 0:
             job = Job(
                 task.id,
-                task.deadline,
+                #jobs deadline is calculated based on the time where the job is released (current) and the tasks deadline
+                current_time + task.deadline,
                 current_time
             )
 
