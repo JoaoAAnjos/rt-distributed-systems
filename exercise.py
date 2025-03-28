@@ -17,11 +17,10 @@ class Task:
         self.wcrt = -1
 
 class Job:
-    def __init__(self, task_id: str, deadline: int):
+    def __init__(self, task_id: str, deadline: int, release_time: int):
         self.task_id = task_id
         self.deadline = deadline
-        self.release_time = 0
-        self.is_ready = True
+        self.release_time = release_time
         self.exec_time = gen_random_comp_time(self)
 
 
@@ -31,7 +30,7 @@ time_unit = 0
 current_time = 0.0
 #global variable for tasks
 tasks: Dict[str, Task] = {}
-#global variable for jobs
+#global variable for active jobs
 jobs: List[Job] = []
 
 """
@@ -82,8 +81,8 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                     task.schedulable = False
                     task.wcrt = -1
 
-                #set the task as completed
-                current_job.is_ready = False
+                #set the task job as completed
+                jobs.remove(current_job)
 
             #decrease the remaining execution time on the job
             current_job.exec_time -= time_unit
@@ -125,38 +124,30 @@ def initialize_jobs():
     for task in tasks.values():
         job = Job(
             task.id,
-            task.deadline
+            task.deadline,
+            current_time
         )
 
         jobs.append(job)
 
 
 """
-This function checks if a task needs to be activated. If a job has been executed inside its deadline, 
-it needs to be activated again when its period is reached, so it can be executed again. In the context of
-this code, this is achieved by setting the is_ready flag inside the task's job to True, so it can be picked
-up when assembling the ready jobs list. Only jobs that have been executed inside their deadline need this,
-as jobs who have not still need to finish their execution, so they still have the flag is_ready set to true
+This function checks if a task needs to be activated. If a task has met its period, a new
+job is created for that task, and added to the active jobs list.
 """
 def activate_task_jobs():
-    for job in jobs:
 
-        if not job.is_ready:
+    for task in tasks.values():
+        
+        #cast to int to ensure that when working with float time_unit it still catches the period activation
+        if int(current_time)%task.period == 0:
+            job = Job(
+                task.id,
+                task.deadline,
+                current_time
+            )
 
-            #grab corresponding task
-            task = tasks.get(job.task_id)
-
-            if task:
-                
-                #cast to int to ensure that when working with float time_unit it still catches the period activation
-                if int(current_time)%task.period == 0:
-                    #activate task job. Reset the values relevant for job execution
-                    job.is_ready = True
-                    job.exec_time = gen_random_comp_time(job)
-                    job.deadline += task.deadline
-                    job.release_time = 0
-            else:
-                print("Corresponding Task for the job was not found. Something is wrong in the simulators execution.")
+            jobs.append(job)
 
 
 """
@@ -169,13 +160,12 @@ def highest_priority_ready_job() -> Job:
 
     for j in jobs:
 
-        if j.is_ready:
-            task = tasks.get(j.task_id)
+        task = tasks.get(j.task_id)
 
-            #This seems misleading, but a smaller number in this column means a higher priority
-            if task.priority < max_priority:
-                result = j
-                max_priority = task.priority 
+        #This seems misleading, but a smaller number in this column means a higher priority
+        if task.priority < max_priority:
+            result = j
+            max_priority = task.priority 
 
     return result
 
