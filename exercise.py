@@ -74,8 +74,6 @@ class Job:
     def __init__(self, task_id: str, release_time: float):
         self.task_id = task_id
         self.release_time = release_time
-        task = tasks[task_id]
-        self.abs_deadline = release_time + task.deadline
         self.is_ready = True
         self.exec_time = 0
         self.abs_deadline = 0
@@ -142,6 +140,7 @@ def run_vss(file_name: str, sim_time: int, time_unit: float):
                     current_job, current_time, deadline_met, task.wcrt
                 )
                 current_job.is_ready = False
+                jobs.remove(current_job)
             
         current_time += time_unit
 
@@ -205,27 +204,6 @@ def activate_task_jobs():
                 new_job.abs_deadline = current_time + task.deadline
                 new_job.exec_time = gen_random_comp_time_task(task)
                 jobs.append(new_job)
-
-
-"""
-For the jobs that are ready, returns the one with the highest priority (i.e. whose corresponding task has the
-highest priority)
-"""
-def highest_priority_ready_job() -> Job:
-    result = None
-    max_priority = math.inf
-
-    for j in jobs:
-
-        if j.is_ready:
-            task = tasks.get(j.task_id)
-
-            #This seems misleading, but a smaller number in this column means a higher priority
-            if task.priority < max_priority:
-                result = j
-                max_priority = task.priority 
-
-    return result
 
 """
 Generates random computation time for a job
