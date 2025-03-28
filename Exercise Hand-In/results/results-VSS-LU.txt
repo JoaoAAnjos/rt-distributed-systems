@@ -1,4 +1,5 @@
-VSS Simulation results for application model in LU.csv
+VSS Simulation results for application model in Low_Utilization_taskset.csv
+Simulation time: 50000
 
 Task_id: Task_0 | WCRT : 3.0 | Deadline: 100 | Schedulable: True
 Task_id: Task_1 | WCRT : 6.0 | Deadline: 200 | Schedulable: True

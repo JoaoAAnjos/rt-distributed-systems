@@ -1,4 +1,5 @@
-VSS Simulation results for application model in SHU.csv
+VSS Simulation results for application model in Schedulable_High_Utilization_taskset.csv
+Simulation time: 1000000
 
 Task_id: Task_0 | WCRT : 9.0 | Deadline: 100 | Schedulable: True
 Task_id: Task_1 | WCRT : 39.0 | Deadline: 300 | Schedulable: True
