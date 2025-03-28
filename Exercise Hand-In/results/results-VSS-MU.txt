@@ -1,0 +1,26 @@
+VSS Simulation results for application model in MU.csv
+
+Task_id: Task_0 | WCRT : 13.0 | Deadline: 100 | Schedulable: True
+Task_id: Task_1 | WCRT : 1.0 | Deadline: 20 | Schedulable: True
+Task_id: Task_2 | WCRT : 5.0 | Deadline: 50 | Schedulable: True
+Task_id: Task_3 | WCRT : 29.0 | Deadline: 200 | Schedulable: True
+Task_id: Task_4 | WCRT : 24.0 | Deadline: 150 | Schedulable: True
+Task_id: Task_5 | WCRT : 3.0 | Deadline: 25 | Schedulable: True
+Task_id: Task_6 | WCRT : 86.0 | Deadline: 600 | Schedulable: True
+Task_id: Task_7 | WCRT : 74.0 | Deadline: 450 | Schedulable: True
+Task_id: Task_8 | WCRT : 48.0 | Deadline: 300 | Schedulable: True
+Task_id: Task_9 | WCRT : 176.0 | Deadline: 900 | Schedulable: True
+Task_id: Task_10 | WCRT : 277.0 | Deadline: 1800 | Schedulable: True
+Task_id: Task_11 | WCRT : 784.0 | Deadline: 5400 | Schedulable: True
+Task_id: Task_12 | WCRT : 9.0 | Deadline: 75 | Schedulable: True
+Task_id: Task_13 | WCRT : 411.0 | Deadline: 2700 | Schedulable: True
+Task_id: Task_14 | WCRT : 53.0 | Deadline: 400 | Schedulable: True
+Task_id: Task_15 | WCRT : 1545.0 | Deadline: 8100 | Schedulable: True
+Task_id: Task_16 | WCRT : 39.0 | Deadline: 225 | Schedulable: True
+Task_id: Task_17 | WCRT : 430.0 | Deadline: 3600 | Schedulable: True
+Task_id: Task_18 | WCRT : 1743.0 | Deadline: 10800 | Schedulable: True
+Task_id: Task_19 | WCRT : 108.0 | Deadline: 800 | Schedulable: True
+
+According to the results, this taskset is schedulable
+
+
