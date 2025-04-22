@@ -1,7 +1,9 @@
 import random
 from typing import Dict
 
-TIME_UNIT = 1
+
+#   Time unit for the simulation (in seconds)
+TIME_UNIT = 1.0
 
 
 #   ------------------------------------------------------------------------------------
@@ -19,6 +21,7 @@ class Task:
             self._wcet = wcet
             self._bcet = 0.0
             self._period = period
+            self._deadline = period
             self._component_id = component_id
             self._priority = priority
 
@@ -40,30 +43,6 @@ def gen_random_comp_time_task(task: Task) -> float:
     rd_values = [task._bcet + i * TIME_UNIT for i in \
                  range(int((task._wcet - task._bcet) // TIME_UNIT) + 1)]
     return random.choice(rd_values)
-
-
-class Sporadic_task(Task):
-    def __init__(self,task,mit_time):
-        try:
-            assert isinstance(task,Task) and isinstance(mit_time,float)
-            self._task = task
-            self._mit_time = mit_time
-            pass
-        except AssertionError:
-            print("Error: Given parameters (Sporadic_task) \
-                  didn't meet the requirements for instance.")
-            
-
-class Periodic_task(Task):
-    def __init__(self,task,period):
-        try:
-            assert isinstance(task,Task) and isinstance(period,float)
-            self._task = task
-            self._period = period
-            pass
-        except AssertionError:
-            print("Error: Given parameters (Periodic_task) \
-                  didn't meet the requirements for instance.")
 
 
 #   ------------------------------------------------------------------------------------
@@ -173,10 +152,18 @@ class Component:
 
             #   Interface definition (Half-half algorithm)
             self._interface = None
-
-            if period > 0.0:    #   Security check for period
+            if period > 0.0:
                 parameters = [float(budget/period),float(2*(period - budget))]
                 self._interface = Resource_paradigm(parameters)
+
+            #   Obtain total resource need by supply bound function for component
+            self._required_supply = 0.0
+
+            #   Obtain global provided resource from supply bound function
+            self._provided_supply = 0.0
+
+            #   Deadline definition for component's priority (EDF)
+            self._deadline = 0.0
 
             #   Check if component is schedulable
             self._schedulable = self.is_schedulable()
@@ -196,11 +183,29 @@ class Component:
 
         self._sub_components.append(child)
 
+    
+    #   Schedule children tasks/components following scheduler specification
+    def schedule_component(self):
+        # Function to apply EDF scheduling at a component level
+        def schedule_edf(ready_tasks):
+            return sorted(ready_tasks, key=lambda task: task._deadline)
+
+        # Function to apply RM scheduling at a terminal component level
+        def schedule_rm(ready_tasks):
+            return sorted(ready_tasks, key=lambda task: task._priority)
+        
+        if self._scheduler == "EDF":
+            #   Apply EDF scheduling
+            self._sub_components = schedule_edf(self._sub_components)
+        elif self._scheduler == "RM":
+            #   Apply RM scheduling
+            self._sub_components = schedule_rm(self._sub_components)
+
 
     #   Compute if component is schedulable. Assume initially schedulable
     #   for empty tasks
     def is_schedulable(self):
-        schedulable = False
+        schedulable = True
 
         if self._is_terminal:               #   Terminal component (set of tasks)
             sumatory = 0.0
@@ -213,6 +218,12 @@ class Component:
                 schedulable = sumatory <= n*(2**(1/n) - 1)
             else:                           #   Earliest Deadline First scheduling
                 schedulable = sumatory <= 1.0
+        else:
+            for component in self._sub_components:
+                #   Check if component is schedulable
+                if not component.is_schedulable():
+                    schedulable = False
+                    break
             
         return schedulable
 
@@ -220,10 +231,13 @@ class Component:
 #   ------------------------------------------------------------------------------------
 #   Core class employed in HSS
 class Core():
-    def __init__(self,identifier,children):
+    def __init__(self,identifier,speed_factor,children):
         try:
             assert isinstance(identifier,str)
             self._core_id = identifier
+
+            assert isinstance(speed_factor,float) and speed_factor > 0.0
+            self._speed_factor = speed_factor
 
             #   Create root component (0 interface)
             self._root_comp = Component("Component_rt","EDF",0,0,self._core_id,False,children)
