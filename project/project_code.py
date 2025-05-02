@@ -4,77 +4,90 @@ import math
 import csv
 
 
-#   Return the Supply Bound Function for a component's
-#   BDR resource paradigm.
-#   >   Parameters:
-#       - component: component instance
-#       - time: float number that represents time since
-#         last resource 
-def sbf_component(component : Component, act_time : float):
+
+"""
+Return the Supply Bound Function for a component's
+BDR resource paradigm.
+>   Parameters:
+    - component: component instance
+    - time: float number that represents time since
+      last resource
+"""
+def sbf_component(component : Component, t_interval : float):
     delta = component._interface._part_delay
     alfa = component._interface._av_factor
     ret_value = 0.0
 
-    if act_time > delta:
-        ret_value = float(alfa*(act_time - delta))
+    if t_interval > delta:
+        ret_value = float(alfa*(t_interval - delta))
     
     return ret_value
     
 
 
-#   Definition of the supply bound function for a task set following
-#   RM algorithm under the worst case computation time
-def sbf_task_RM(component : Component):
-    if component._scheduler == "EDF" or (not component._is_terminal):
-        return
+"""
+    Demand bound function for a task set following
+    RM algorithm
 
-    # Sort tasks by priority. (Eg: In Rate Monotonic the priority is defined by the period,
-    # shorter period = larger priority)
-    sorted_tasks_dict = dict(sorted(component._sub_components.items(), key=lambda item: item[1]._priority))
+    >   Return:
+        -   Total demand bound function value
+"""
+def dbf_task_RM(sorted_tasks, task : Task, t_interval : float):
+    dbf_value = task._wcet
+    for hp_task in sorted_tasks:
+        if hp_task._priority < task._priority:
+            dbf_value += math.ceil(t_interval / hp_task._period) * hp_task._wcet
 
-    # Extract values to list to iterate by index easier
-    sorted_tasks = list(sorted_tasks_dict.values())
+    #   Return the total amount of resource demanded by the task
+    return dbf_value
 
-    #   Calculate the total utilization of the task set
-    total_supply = 0.0
 
-    # RTA algorithm
-    for task in sorted_tasks:
-        R = 0  
-        R_old = 0
-        interference = 0
 
-        while True:
-            R_old = R
-            R = interference + task._wcet
+"""
+    Demand bound function for a component which has RM as
+    scheduling algorithm.
 
-            # Break if unschedulable
-            if R > task._period:
-                task._schedulable = False
+    >   Return:
+        (1)
+            -   True:   Component is schedulable
+            -   False:  Component is not schedulable
+        (2)
+            -   Array of schedulable/unschedulable tasks
+"""
+def dbf_component_RM(component : Component):
+    schedulable = True
+    
+    sorted_tasks = sorted(component._sub_components, key=lambda _task: _task._priority, reverse=True)
+    schedulable_tasks = [True] * len(sorted_tasks)
+
+    for i, task in enumerate(sorted_tasks):
+        t_interval = 0.0
+
+        while t_interval <= task._period and schedulable:
+            dbf_task = dbf_task_RM(sorted_tasks, task, t_interval)
+
+            if dbf_task > sbf_component(component, t_interval):
+                schedulable = False
+                schedulable_tasks[i] = False
                 break
-                       
-            # Calculate interference from higher priority tasks
-            interference = 0
-            for hp_task in sorted_tasks:
-                if hp_task._priority < task._priority: # Assuming lower period means higher priority value
-                    interference += math.ceil(R / hp_task._period) * hp_task._wcet
 
-            # The task is schedulable and R contains the theoretical wcrt value
-            if R <= R_old:
-                task._wcrt = math.ceil(R)
-                total_supply += task._wcrt
-                break
+            t_interval += TIME_UNIT
 
-    #   Return the total amount of resource employed by the task set
-    return total_supply
+    return schedulable, schedulable_tasks
 
 
 
-#   Definition of the supply bound function for a task set following
-#   EDF algorithm under the worst case computation time
-def sbf_task_EDF(component : Component):
-    if component._scheduler == "RM" or (not component._is_terminal):
-        return
+"""
+    Demand bound function for a component which has EDF as
+    scheduling algorithm.
+
+    >   Return:
+        (1)
+            -   True:   Component is schedulable
+            -   False:  Component is not schedulable
+"""
+def dbf_task_EDF(component : Component):
+    schedulable = True
 
     #   Calculate the hyperperiod of the task set (maximum resource demand
     #   in the task set cycle)
@@ -97,12 +110,20 @@ def sbf_task_EDF(component : Component):
     
     task_set = list(component._sub_components.values())
     hyperperiod = calculate_hyperperiod(task_set)
-    total_supply = 0.0
+    
+    t_interval = 0.0
+    while t_interval <= hyperperiod:
+        dbf_edf = 0.0
+        for task in task_set:
+            dbf_edf += math.ceil((t_interval + task._period - task._deadline)/task._period) * task._wcet
 
-    for task in task_set:
-        total_supply += math.floor(hyperperiod / task._period) * task._wcet
+        if dbf_edf > sbf_component(component, t_interval):
+            schedulable = False
+            break
+
+        t_interval += TIME_UNIT
         
-    return total_supply
+    return schedulable
 
 
 #   [...]
