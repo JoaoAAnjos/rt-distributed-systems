@@ -1,5 +1,5 @@
 from project_types import Component, Core, Task, Job, TIME_UNIT
-from typing import Dict,List
+from typing import Dict
 import math
 import csv
 
@@ -94,7 +94,6 @@ def sbf_task_EDF(component : Component):
             hyperperiod = lcm(hyperperiod, tasks[i]._deadline)
 
         return float(hyperperiod)
-    
     
     task_set = list(component._sub_components.values())
     hyperperiod = calculate_hyperperiod(task_set)
@@ -225,6 +224,12 @@ def run_simulation(sim_time: float,time_unit: float):
             print(f"Error: Tasks from core {core._core_id} not schedulable")
             core_instances.remove(core)
 
+
+    #   Exit simulation if no cores are schedulable
+    if not core_instances:
+        print("Core list is empty. Aborting simulation.")
+        exit(1)
+
     # Initialize jobs
     initialize_jobs()
 
@@ -283,7 +288,7 @@ def initialize_simulation():
     components_instances = []
 
     #   Children of Core component
-    for row in read_data("budgets.csv"):
+    for row in read_data("/home/caio_iriarte/rt-distributed-systems/project/budgets.csv"):
         components_instances.append( \
         Component(row[0],row[1],float(row[2]),float(row[3]),row[4],True))
 
@@ -291,7 +296,7 @@ def initialize_simulation():
         components[row[0]] = components_instances[-1]
 
     #   Children of terminal components
-    for row in read_data("tasks.csv"):
+    for row in read_data("/home/caio_iriarte/rt-distributed-systems/project/tasks.csv"):
         task_id = row[3]
 
         #   Add task to corresponding component
@@ -300,11 +305,11 @@ def initialize_simulation():
                 task = Task(row[0],float(row[1]),float(row[2]),row[3],row[5])
 
                 # Add task to dictionary, mapped to its id
-                tasks[task_id] = task
+                tasks[row[0]] = task
                 component.add_child(task)
 
     #   Core ID and speed factor specifications
-    for row in read_data("architecture.csv"):
+    for row in read_data("/home/caio_iriarte/rt-distributed-systems/project/architecture.csv"):
         core_inst = Core(row[0],float(row[1]))
 
         #   Add component instances to core instance

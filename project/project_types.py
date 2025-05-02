@@ -213,11 +213,12 @@ class Component:
                 #   Initially calculate by task._wcet instead of WCRT
                 sumatory += task._wcet/task._period
 
-            if self._scheduler == "RM":     #   Rate-Monotonic scheduling
-                n = len(self._sub_components)
-                schedulable = sumatory <= n*(2**(1/n) - 1)
-            else:                           #   Earliest Deadline First scheduling
-                schedulable = sumatory <= 1.0
+            if len(self._sub_components) > 0:
+                if self._scheduler == "RM":     #   Rate-Monotonic scheduling
+                    n = len(self._sub_components)
+                    schedulable = sumatory <= n*(2**(1/n) - 1)
+                else:                           #   Earliest Deadline First scheduling
+                    schedulable = sumatory <= 1.0
         else:
             for component in self._sub_components:
                 #   Check if component is schedulable
@@ -231,7 +232,7 @@ class Component:
 #   ------------------------------------------------------------------------------------
 #   Core class employed in HSS
 class Core():
-    def __init__(self,identifier,speed_factor,children):
+    def __init__(self,identifier,speed_factor,children=None):
         try:
             assert isinstance(identifier,str)
             self._core_id = identifier
