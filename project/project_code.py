@@ -1,8 +1,7 @@
-from project_types import Component, Core, Task, Job, TIME_UNIT
-from typing import Dict,List
 import math
-import csv
 
+from typing import Dict,List
+from project_lib import *
 
 #   Return the Supply Bound Function for a component's
 #   BDR resource paradigm.
@@ -22,9 +21,9 @@ def sbf_component(component : Component, act_time : float):
     
 
 
-#   Definition of the supply bound function for a task set following
+#   Definition of the demand bound function for a task set following
 #   RM algorithm under the worst case computation time
-def sbf_task_RM(component : Component):
+def dbf_task_RM(component : Component):
     if component._scheduler == "EDF" or (not component._is_terminal):
         return
 
@@ -72,7 +71,7 @@ def sbf_task_RM(component : Component):
 
 #   Definition of the supply bound function for a task set following
 #   EDF algorithm under the worst case computation time
-def sbf_task_EDF(component : Component):
+def dbf_task_EDF(component : Component):
     if component._scheduler == "RM" or (not component._is_terminal):
         return
 
@@ -113,37 +112,6 @@ def sbf_task_EDF(component : Component):
 #   ------------------------------------------------------------------------------------------------------
 #   ------------------------------------------------------------------------------------------------------
 
-#   Here below, define simulator and algorithm employed for the simulation.
-#   Also define time unit, etcetera.
-
-
-# Global variable for tasks
-tasks: Dict[str, Task] = {}
-
-# Global variable for active jobs
-jobs: Dict[str, Job] = {}
-
-# Global variable for components
-components: Dict[str, Component] = {}
-
-# Global variable for current time
-current_time = 0.0
-
-
-#   Initialize the jobs for each task
-def initialize_jobs():
-    # Ensure the list is clean if running more than one simulation
-    jobs.clear()
-
-    for task in tasks.values():
-        job = Job(
-            task._id,
-            task._period,
-            current_time
-        )
-
-        jobs.append(job)
-
 
 #   This function checks if a task needs to be activated. If a task has met its period, a new
 #   job is created for that task, and added to the active jobs list.
@@ -153,12 +121,12 @@ def activate_task_jobs():
         #   Cast to int to ensure that when working with float time_unit it still catches the period activation
         #   ATTENTION: As of now, this condition only works because of the assumption that time_unit will always be 1
         #   in the context of the exercise
-        if jobs.get(task._id) == None and current_time != 0 and int(current_time) % task._period == 0:
+        if jobs.get(task._id) == None and CURRENT_TIME != 0 and int(CURRENT_TIME) % task._period == 0:
             #   Jobs deadline is calculated based on the time when the job is released (current) and the tasks deadline
             new_job = Job(
                 task._id,
-                current_time + task._period,
-                current_time
+                CURRENT_TIME + task._period,
+                CURRENT_TIME
             )
             jobs[task._id] = new_job
 
@@ -201,45 +169,9 @@ def schedule_components(component_root : Component):
 
     #   Compute deadline by supply bound function
     if component_root._scheduler == "EDF":
-        component_root._deadline = sbf_task_EDF(component_root)
+        component_root._deadline = dbf_task_EDF(component_root)
     elif component_root._scheduler == "RM":
-        component_root._deadline = sbf_task_RM(component_root)
-
-
-
-def run_simulation(sim_time: float,time_unit: float):
-    #   Set global simulation time to zero
-    global current_time
-
-    global TIME_UNIT
-    TIME_UNIT = time_unit
-
-    #   Obtain simulation structure
-    core_instances = initialize_simulation()
-
-    #   Schedule components and tasks by priority
-    for core in core_instances:
-        schedule_components(core._root_comp)
-
-        if not core._root_comp.is_schedulable():
-            print(f"Error: Tasks from core {core._core_id} not schedulable")
-            core_instances.remove(core)
-
-    # Initialize jobs
-    initialize_jobs()
-
-    # Reset the current time if running more than one simulation
-    current_time = 0.0
-
-    while current_time <= sim_time:
-        activate_task_jobs()
-
-        # Get the highest priority jobs for each core
-        for core in core_instances:
-            current_job = highest_priority_ready_job(core._root_comp)
-            handle_job(current_job)
-
-        current_time += time_unit
+        component_root._deadline = dbf_task_RM(component_root)
 
 
 #   This function handles the highest priority job for each core
@@ -252,10 +184,10 @@ def handle_job(current_job: Job, time_unit: float):
         #   Every time a job is completed, the component's supply
         #   count is updated (in the end, provided supply = deadline and required supply = 0)
         if job == None:
-            component._provided_supply += sbf_component(component, current_time)
+            component._provided_supply += sbf_component(component, CURRENT_TIME)
         else:
             component._required_supply -= \
-                (sbf_component(component, current_time) - component._provided_supply)
+                (sbf_component(component, CURRENT_TIME) - component._provided_supply)
             
     
     if current_job:
@@ -270,48 +202,3 @@ def handle_job(current_job: Job, time_unit: float):
 
 
 
-# Function to initialize parameters for the simulation (CSV files)
-def initialize_simulation():
-    def read_data(file_path):
-        with open(file_path, 'r', newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            next(reader)  # Skip the first row (header)
-            for row in reader:
-                yield row
-
-    core_instances = []
-    components_instances = []
-
-    #   Children of Core component
-    for row in read_data("budgets.csv"):
-        components_instances.append( \
-        Component(row[0],row[1],float(row[2]),float(row[3]),row[4],True))
-
-        #   Add component to dictionary, mapped to its id
-        components[row[0]] = components_instances[-1]
-
-    #   Children of terminal components
-    for row in read_data("tasks.csv"):
-        task_id = row[3]
-
-        #   Add task to corresponding component
-        for component in components_instances:
-            if component._component_id == task_id:
-                task = Task(row[0],float(row[1]),float(row[2]),row[3],row[5])
-
-                # Add task to dictionary, mapped to its id
-                tasks[task_id] = task
-                component.add_child(task)
-
-    #   Core ID and speed factor specifications
-    for row in read_data("architecture.csv"):
-        core_inst = Core(row[0],float(row[1]))
-
-        #   Add component instances to core instance
-        for component in components_instances:
-            if component._core_id == row[0]:
-                core_inst._root_comp.add_child(component)
-        
-        core_instances.append(core_inst)
-
-    return core_instances
