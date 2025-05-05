@@ -52,6 +52,9 @@ class Component:
             assert type(terminal) == bool
             self._is_terminal = terminal
 
+            #   Sub component list
+            self._sub_components: List = []
+
             #   Interface definition (Half-half algorithm)
             self._interface = None
             if period > 0.0:
@@ -86,7 +89,7 @@ class Component:
 #   Task 
 #   ------------------------------------------------------------------------------------
 class Task:
-    def __init__(self, id: str, wcet: float, period: float, component_id: str):
+    def __init__(self, id: str, wcet: float, period: float, component_id: str, priority: int):
         try:
             assert  type(id) == str and \
                     type(wcet) == float and \
@@ -98,6 +101,8 @@ class Task:
             self._period = period
             self._deadline = period
             self._component_id = component_id
+            if priority is not None:
+                self._priority = priority
             
             self._priority = -1
 
@@ -224,7 +229,8 @@ def initialize_tasks(df: pd.DataFrame):
             row["task_name"],
             row["wcet"],
             row["period"],
-            row["component_id"]
+            row["component_id"],
+            row["priority"]
         )
 
         component = components.get(row["component_id"])
