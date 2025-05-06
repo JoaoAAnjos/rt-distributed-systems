@@ -6,7 +6,7 @@ from typing import Dict,List
 #   ------------------------------------------------------------------------------------
 #   Core class 
 #   ------------------------------------------------------------------------------------
-class Core():
+class Core:
     def __init__(self, identifier: str, speed_factor: float, scheduler: str):
         try:
             assert isinstance(identifier,str)
@@ -19,7 +19,7 @@ class Core():
             self._scheduler = scheduler
 
             #   Create root component (0 interface)
-            self.root_comp = Component(self._core_id, self._scheduler, 0, 0, self._core_id, False)
+            self.root_comp = Component(False, self._core_id, self._scheduler, 0, 0, self._core_id)
 
             cores[self._core_id] = self
 
@@ -27,11 +27,35 @@ class Core():
             print("Error: Given parameters (Core) \
                   didn't meet the requirements for instance.")
             
+
+    """
+        Function to check if the children components from a core are schedulable
+        (RM and EDF algorithms).
+        
+        >   Return:
+            -   True:   Core subcomponents are schedulable
+            -   False:  Core subcomponents are not schedulable
+    """
+    def simple_scheduler(self):
+        utilization = 0.0
+        
+        for component in self.root_comp._sub_components:
+            utilization += component._budget / component._period
+        
+        #   Check if the utilization is less than the limit for scheduler
+        if self._scheduler == "RM":
+            n = len(self.root_comp._sub_components)
+            return utilization <= n*(2**(1/n) - 1)
+        elif self._scheduler == "EDF":
+            return utilization <= 1.0
+
+            
 #   ------------------------------------------------------------------------------------
 #   Component
 #   ------------------------------------------------------------------------------------
 class Component:
-    def __init__(self, component_id: str, scheduler: str, budget: int, period: float, core_id: str, terminal: bool):
+    def __init__(self, terminal: bool, component_id: str, scheduler: str, budget: int, \
+                 period: int, core_id: str, priority: int = -1):
         try:
             #   Component ID specification
             assert type(component_id) == str
@@ -40,12 +64,20 @@ class Component:
             #   Core ID specification
             assert type(core_id) == str
             self._core_id = core_id
-            
+
             #   Scheduler definition (string), can be:
             #   * EDF (Earliest Deadline First)
             #   * RM (Rate-Monotonic)
             assert type(scheduler) == str
             self._scheduler = scheduler
+
+            #   Budget definition (integer)
+            assert type(budget) == int and budget >= 0
+            self._budget = budget
+
+            #   Period definition (integer)
+            assert type(period) == int and period >= 0
+            self._period = period
 
             #   Boolean variable which indicates the component is terminal
             #   (considered then a set of tasks) or not
@@ -66,13 +98,21 @@ class Component:
 
             components[self._component_id] = self
 
+            #   Initialize subcomponents list
+            self._sub_components = []
+
+            #   Define component's priority (needed for RM algorithm)
+            self._priority = priority
+
         except AssertionError:
             print("Error: Given parameters (Component) \
                   didn't meet the requirements for instance.")
         pass
 
 
-    #   Add a child to the component's children (Task or Component)
+    """
+        Add a child to the component's children (Task or Component)
+    """
     def add_child(self,child):
         if self._is_terminal:
             assert isinstance(child,Task), "If terminal, child must be Task"
@@ -86,11 +126,11 @@ class Component:
 #   Task 
 #   ------------------------------------------------------------------------------------
 class Task:
-    def __init__(self, id: str, wcet: float, period: float, component_id: str):
+    def __init__(self, id: str, wcet: int, period: int, component_id: str, priority: int = -1):
         try:
             assert  type(id) == str and \
-                    type(wcet) == float and \
-                    type(period) == float and \
+                    type(wcet) == int and \
+                    type(period) == int and \
                     type(component_id) == str
 
             self._id = id
@@ -99,7 +139,8 @@ class Task:
             self._deadline = period
             self._component_id = component_id
             
-            self._priority = -1
+            #   Priority definition (needed for RM algorithm)
+            self._priority = priority
 
             #   Initially define task as schedulable
             self._schedulable = True
@@ -203,12 +244,13 @@ def initialize_components(df: pd.DataFrame):
 
     for index, row in df.iterrows():
         component = Component(
+            True,
             row["component_id"],
             row["scheduler"],
             row["budget"],
             row["period"],
             row["core_id"],
-            True
+            row["priority"]
         )
 
         core = cores.get(row["core_id"])
@@ -224,7 +266,8 @@ def initialize_tasks(df: pd.DataFrame):
             row["task_name"],
             row["wcet"],
             row["period"],
-            row["component_id"]
+            row["component_id"],
+            row["priority"]
         )
 
         component = components.get(row["component_id"])

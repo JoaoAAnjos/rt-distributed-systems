@@ -1,6 +1,4 @@
 import math
-
-from typing import Dict,List
 from project_lib import *
 
 
@@ -54,21 +52,20 @@ def dbf_task_RM(sorted_tasks, task : Task, t_interval : float):
             -   Array of schedulable/unschedulable tasks
 """
 def dbf_component_RM(component : Component):
-    schedulable = True
+    schedulable = False
     
-    sorted_tasks = sorted(component._sub_components, key=lambda _task: _task._priority, reverse=True)
-    schedulable_tasks = [True] * len(sorted_tasks)
+    sorted_tasks = sorted(component._sub_components, key=lambda _task: _task._priority, reverse=False)
+    schedulable_tasks = [False] * len(sorted_tasks)
 
     for i, task in enumerate(sorted_tasks):
         t_interval = 0.0
 
-        while t_interval <= task._period and schedulable:
+        while t_interval <= task._period and (schedulable == False):
             dbf_task = dbf_task_RM(sorted_tasks, task, t_interval)
 
-            if dbf_task > sbf_component(component, t_interval):
-                schedulable = False
-                schedulable_tasks[i] = False
-                break
+            if dbf_task <= sbf_component(component, t_interval):
+                schedulable = True
+                schedulable_tasks[i] = True
 
             t_interval += 1
 
@@ -85,7 +82,7 @@ def dbf_component_RM(component : Component):
             -   True:   Component is schedulable
             -   False:  Component is not schedulable
 """
-def dbf_task_EDF(component : Component):
+def dbf_component_EDF(component : Component):
     schedulable = True
 
     #   Calculate the hyperperiod of the task set (maximum resource demand
@@ -97,25 +94,23 @@ def dbf_task_EDF(component : Component):
             return a
 
         def lcm(a, b):
-            if a == 0 or b == 0:
-                return 0
-            return abs(a * b) // gcd(a, b)
+            return abs(a * b) // gcd(a, b) if a and b else 0
 
-        hyperperiod = tasks[0]._deadline
+        hyperperiod = tasks[0]._period
         for i in range(1, len(tasks)):
-            hyperperiod = lcm(hyperperiod, tasks[i]._deadline)
+            hyperperiod = lcm(hyperperiod, tasks[i]._period)
 
         return float(hyperperiod)
     
     
-    task_set = list(component._sub_components.values())
+    task_set = component._sub_components
     hyperperiod = calculate_hyperperiod(task_set)
     
     t_interval = 0.0
     while t_interval <= hyperperiod:
         dbf_edf = 0.0
         for task in task_set:
-            dbf_edf += math.ceil((t_interval + task._period - task._deadline)/task._period) * task._wcet
+            dbf_edf += math.floor((t_interval + task._period - task._deadline)/task._period) * task._wcet
 
         if dbf_edf > sbf_component(component, t_interval):
             schedulable = False
@@ -190,9 +185,9 @@ def schedule_components(component_root : Component):
 
     #   Compute deadline by supply bound function
     if component_root._scheduler == "EDF":
-        component_root._deadline = dbf_task_EDF(component_root)
+        component_root._deadline = dbf_component_EDF(component_root)
     elif component_root._scheduler == "RM":
-        component_root._deadline = dbf_task_RM(component_root)
+        component_root._deadline = dbf_component_RM(component_root)
 
 
 #   This function handles the highest priority job for each core
