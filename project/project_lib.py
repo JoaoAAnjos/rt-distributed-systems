@@ -266,13 +266,21 @@ def initialize_tasks(df: pd.DataFrame):
         core = cores.get(component._core_id)
         wcet = float(row["wcet"]/core._speed_factor)
         
-        task = Task(
-            row["task_name"],
-            wcet,
-            row["period"],
-            row["component_id"],
-            row["priority"]
-        )
+        if component._scheduler == "RM":
+            task = Task(
+                row["task_name"],
+                wcet,
+                row["period"],
+                row["component_id"],
+                row["priority"]
+            )
+        else:   #   EDF
+            task = Task(
+                row["task_name"],
+                wcet,
+                row["period"],
+                row["component_id"]
+            )
 
         component.add_child(task)
 

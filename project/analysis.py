@@ -52,7 +52,7 @@ def dbf_task_RM(sorted_tasks, task : Task, t_interval : float):
             -   Array of schedulable/unschedulable tasks
 """
 def dbf_component_RM(component : Component):
-    schedulable = False
+    schedulable = True
     
     sorted_tasks = sorted(component._sub_components, key=lambda _task: _task._priority, reverse=False)
     schedulable_tasks = [False] * len(sorted_tasks)
@@ -60,14 +60,18 @@ def dbf_component_RM(component : Component):
     for i, task in enumerate(sorted_tasks):
         t_interval = 0.0
 
-        while t_interval <= task._period and (schedulable == False):
+        while t_interval <= task._period and (schedulable_tasks[i] == False):
             dbf_task = dbf_task_RM(sorted_tasks, task, t_interval)
 
             if dbf_task <= sbf_component(component, t_interval):
-                schedulable = True
                 schedulable_tasks[i] = True
 
             t_interval += 1
+
+    for i in range(len(schedulable_tasks)):
+        if schedulable_tasks[i] == False:
+            schedulable = False
+            break
 
     return schedulable, schedulable_tasks
 
@@ -118,7 +122,8 @@ def dbf_component_EDF(component : Component):
 
         t_interval += 1
         
-    return schedulable
+    schedulable_tasks = [schedulable] * len(component._sub_components)
+    return schedulable, schedulable_tasks
 
 
 #   [...]

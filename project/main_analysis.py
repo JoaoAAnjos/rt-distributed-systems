@@ -20,6 +20,11 @@ def analyse_system():
     
     initialize_data()
 
+    #   Clear and initialize CSV results file
+    with open("output/results_analysis.csv", "w") as f:
+        f.write("Task_ID,WCET,Priority,Task_Schedulable,Component_ID,Component_Schedulable\n")
+        f.write("=========================================================================\n")
+
     #   Check if cores are schedulable
     for core in cores.values():
         if not core.simple_scheduler():
@@ -34,10 +39,17 @@ def analyse_system():
     #   Check if components are schedulable
     for core in cores.values():
         for component in core.root_comp._sub_components:
+            sorted_tasks = []
             if component._scheduler == "RM":
-                schedulable, _ = dbf_component_RM(component)
+                sorted_tasks = sorted(component._sub_components, \
+                                      key=lambda _task: _task._priority, reverse=False)
+                schedulable, schedulable_tasks = dbf_component_RM(component)
             elif component._scheduler == "EDF":
-                schedulable = dbf_component_EDF(component)
+                sorted_tasks = component._sub_components
+                schedulable, schedulable_tasks = dbf_component_EDF(component)
+
+            #   Write results to CSV file
+            write_results(sorted_tasks,schedulable_tasks,component,schedulable)
 
             if not schedulable:
                 system_schedulable = False
@@ -46,6 +58,21 @@ def analyse_system():
                 schedulable_components.append(component._component_id)
 
     return system_schedulable, unschedulable_components, schedulable_components
+
+
+
+"""
+    Write results to CSV file. Receive the sorted tasks, schedulable tasks,
+    component and schedulable status of the component.
+
+    >   Return:
+        -   None
+"""
+def write_results(sorted_tasks,schedulable_tasks,component,schedulable):
+    with open("output/results_analysis.csv", "a") as f:
+        for i, task in enumerate(sorted_tasks):
+            f.write(f"{task._id},{task._wcet:.4f},{task._priority},{schedulable_tasks[i]},"
+                    f"{component._component_id},{schedulable}\n")
 
 
 #   ------------------------------------------------------------------------------------
@@ -60,8 +87,8 @@ if __name__ == "__main__":
         print("\nSystem is completely schedulable. All cores' components are schedulable.")
     else:
         print("\nSystem is not completely schedulable.")
-        print("Unschedulable components:\n", unschedulable_components)
+        print("\nUnschedulable components:\n", unschedulable_components)
 
     if schedulable_components:
-        print("Schedulable components:\n", schedulable_components)
+        print("\nSchedulable components:\n", schedulable_components)
 
