@@ -15,7 +15,7 @@ def sbf_component(component : Component, t_interval : float):
     alfa = component._interface._av_factor
     ret_value = 0.0
 
-    if t_interval > delta:
+    if t_interval >= delta:
         ret_value = float(alfa*(t_interval - delta))
     
     return ret_value

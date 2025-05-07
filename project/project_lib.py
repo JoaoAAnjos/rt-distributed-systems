@@ -126,10 +126,10 @@ class Component:
 #   Task 
 #   ------------------------------------------------------------------------------------
 class Task:
-    def __init__(self, id: str, wcet: int, period: int, component_id: str, priority: int = -1):
+    def __init__(self, id: str, wcet: float, period: int, component_id: str, priority: int = -1):
         try:
             assert  type(id) == str and \
-                    type(wcet) == int and \
+                    type(wcet) == float and \
                     type(period) == int and \
                     type(component_id) == str
 
@@ -262,15 +262,18 @@ Initializes tasks and adds them to hierarchy structure
 def initialize_tasks(df: pd.DataFrame):
 
     for index, row in df.iterrows():
+        component = components.get(row["component_id"])
+        core = cores.get(component._core_id)
+        wcet = float(row["wcet"]/core._speed_factor)
+        
         task = Task(
             row["task_name"],
-            row["wcet"],
+            wcet,
             row["period"],
             row["component_id"],
             row["priority"]
         )
 
-        component = components.get(row["component_id"])
         component.add_child(task)
 
 """
