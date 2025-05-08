@@ -50,6 +50,9 @@ class Component:
             assert type(scheduler) == str
             self._scheduler = Scheduler[scheduler]
 
+            assert type(budget) == int
+            self.budget = budget
+
             # Tree information (Children and Parent)
             self.parent = None
             self.children: List[Component] = []

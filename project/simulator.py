@@ -121,7 +121,7 @@ def apply_action_on_tree(node: Component, action: Callable):
     for child in node.children:
         apply_action_on_tree(child, action)
     
-""" Sets up the TaskExecution objects in the registry for simulator execution."""
+"""Sets up the TaskExecution objects in the registry for simulator execution"""
 def initialize_taskexecs_registry(component: Component):
 
     if component.is_leaf():
@@ -138,14 +138,18 @@ def initialize_taskexecs_registry(component: Component):
 
         component_task_exec_registry[component._component_id] = component_taskexecs
 
-"""Initializes the ready queues for each component, heapifying it"""
-def initialize_ready_queues(component: Component):
+"""Initializes the ready queue for a component, heapifying it"""
+def initialize_ready_queue(component: Component):
 
     if component.is_leaf():
         ready_queue = []
         heapq.heapify(ready_queue)
 
         ready_queues[component._component_id] = ready_queue
+
+def set_initial_remaining_budgets(component: Component):
+
+    component.remaining_budget = component.budget
 
 # -----------------------------
 # --- Core Simulation Logic ---
@@ -218,10 +222,13 @@ def initialize_simulation_state(target_core_id: str):
     core = cores_registry[target_core_id]
 
     #Setup component task execution registry. This also initializes TaskExecution objects
-    apply_action_on_tree(core.root_comp, initialize_taskexecs_registry())
+    apply_action_on_tree(core.root_comp, initialize_taskexecs_registry)
     
     #Setup component ready queues
-    apply_action_on_tree(core.root_comp, initialize_ready_queues())  
+    apply_action_on_tree(core.root_comp, initialize_ready_queue)
+
+    #Set component initial remaining budgets
+    apply_action_on_tree(core.root_comp, set_initial_remaining_budgets)  
 
     print("Simulation state initialized.")
     return True
@@ -229,7 +236,7 @@ def initialize_simulation_state(target_core_id: str):
 #TODO Review this and add BUDGET_REPLENISH Event
 def handle_event(event: Event):
     if event.type == EventType.TASK_ARRIVAL:
-            handle_task_arrival(CURRENT_TIME, event.task)
+        handle_task_arrival(CURRENT_TIME, event.task)
     elif event.type == EventType.TASK_COMPLETION:
         # Only handle if task didn't finish early during time update
         if running_task and running_task._id == event.task.id:
@@ -240,6 +247,8 @@ def handle_event(event: Event):
                 print(f"Warning: Completion event for {event.task.id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
                 make_scheduling_decision() # Re-check who should run
             # else: Completion event might be stale due to preemption or early finish
+    elif event.type == EventType.BUDGET_REPLENISH:
+        handle_budget_replenish()
 
 #TODO REVIEW AND COMPLETE AFTER CHANGES
 """Decides which task to run next based on RM priority."""
