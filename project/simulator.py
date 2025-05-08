@@ -63,7 +63,7 @@ event_queue: List[Event] = []
 # Registry of Tasks associated with Component for terminal Components
 component_task_exec_registry: Dict[str, List[TaskExecution]] = {}
 # The queue of ready tasks for each terminal Component
-ready_queues: Dict[str, List[Task]] = {}
+ready_queues: Dict[str, List[TaskExecution]] = {}
 # The root core
 core: Core = None
 # The TaskExecution currently running.
@@ -72,6 +72,45 @@ running_task: Optional[TaskExecution] = None
 #  --------------------------------------------------------------------------------------
 #  Helper Functions
 #  --------------------------------------------------------------------------------------
+
+"""Gets the highest priority component, with a non-empty ready queue"""
+def get_highest_priority_component(root: Component) -> Component:
+    def traverse(node: Component):
+        nonlocal result
+        priority_attr = None
+
+        #Decides which property should be evaluated based on scheduler 
+        if node._scheduler == Scheduler.RM:
+            priority_attr = 'period'
+        elif node._scheduler == Scheduler.EDF:
+            priority_attr = 'next_replenish_time'
+
+        if priority_attr is None:
+            print(f"Error: Target component '{node._component_id}' has an uncovered scheduler.")
+            return
+        
+        # If it's a leaf node
+        if node.is_leaf():
+            # Check if it's better than our current best candidate
+            if ready_queues.get(node._component_id) and (result is None or 
+                                                         getattr(node, priority_attr) < getattr(result, priority_attr)):
+                result = node
+            return
+            
+        # Find child with minimum priority (highest priority)
+        next_node = min(node.children, key=lambda x: getattr(x, priority_attr))
+        traverse(next_node)
+        
+        # If we didn't find a valid leaf in that branch, try other children
+        if result is None or getattr(node, priority_attr) < getattr(result, priority_attr):
+            for child in sorted(node.children, key=lambda x: getattr(x, priority_attr)):
+                if child != next_node:  # Already checked this one
+                    traverse(child)
+        
+    result = None
+    traverse(root)
+    return result 
+
 
 """Adds a task to a component's ready queue"""
 def add_to_component_ready_queue(component: Component, task_exec: TaskExecution):
@@ -83,7 +122,7 @@ def add_to_component_ready_queue(component: Component, task_exec: TaskExecution)
         priority = task_exec.absolute_deadline
 
     if priority is None:
-        print(f"Error: Target component '{component._component_id}' has a uncovered scheduler.")
+        print(f"Error: Target component '{component._component_id}' has an uncovered scheduler.")
         return
 
     heapq.heappush(ready_queues.get(component._component_id), (priority, task_exec))
@@ -96,7 +135,7 @@ def get_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optiona
     return None
 
 """Removes and returns the highest priority task from the ready queue."""
-def remove_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
+def pop_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
      if ready_queue:
         task = heapq.heappop(ready_queue)
         return task
@@ -115,11 +154,20 @@ def get_next_event() -> Optional[Event]:
     return None
 
 """Iterates through the component tree hierarchy, applying an operation on every node"""
-def apply_action_on_tree(node: Component, action: Callable):
+def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
     action(node)
     
     for child in node.children:
         apply_action_on_tree(child, action)
+
+"""Iterates through the component tree hierarchy, finding the node that fits the condition.
+    The condition is given as a callable that returns bool to allow more complex checks"""
+def filter_tree_node(node: Component, action: Callable[[Component], bool]) -> Component:
+    if action(node):
+        return node
+    else:
+        for child in node.children:
+            filter_tree_node(child, action)
     
 """Sets up the TaskExecution objects in the registry for simulator execution"""
 def initialize_taskexecs_registry(component: Component):
@@ -151,6 +199,7 @@ def initialize_ready_queue(component: Component):
 def set_initial_remaining_budgets(component: Component):
 
     component.current_budget = component.budget
+    component.next_replenish_time = component.period
 
     schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
 
@@ -159,14 +208,14 @@ def set_initial_remaining_budgets(component: Component):
 # -----------------------------
 
 """Executes the RM simulation loop for the specified core."""
-def run_simulation(target_core_id: str):
+def run_simulation(target_core_id: str, maxSimTime: float):
     global CURRENT_TIME, running_task
 
     if not initialize_simulation_state(target_core_id):
         return
 
     print("\n--- Starting RM Simulation Loop ---")
-    while event_queue:
+    while event_queue and CURRENT_TIME < maxSimTime + EPSILON:
         # Get next event
         event = heapq.heappop(event_queue)
 
@@ -256,7 +305,7 @@ def handle_event(event: Event):
             # else: Completion event might be stale due to preemption or early finish
 
 #TODO REVIEW AND COMPLETE AFTER CHANGES
-"""Decides which task to run next based on RM priority."""
+"""Decides which task should be running at current time, according to schedulers and priorities."""
 def make_scheduling_decision():
     global running_task, CURRENT_TIME
 
@@ -270,7 +319,7 @@ def make_scheduling_decision():
     if running_task is None:
         if highest_ready:
             # Start the highest priority ready task
-            running_task = remove_highest_priority_ready_task()
+            running_task = pop_highest_priority_ready_task()
             running_task.state = 'RUNNING'
             print(f"{CURRENT_TIME:.4f}: Starting Task {running_task._id} (Rem WCET: {running_task.remaining_wcet:.4f})")
             # Schedule its completion
@@ -282,8 +331,6 @@ def make_scheduling_decision():
             pass
     else: # A task is currently running
         if highest_ready and highest_ready._priority < running_task._priority:
-            # Preemption needed
-            print(f"{CURRENT_TIME:.4f}: Preempting Task {running_task._id} (Prio {running_task._priority}) by Task {highest_ready._id}")
 
             # Stop the running task and put it back in the ready queue
             preempted_task = running_task
@@ -292,23 +339,24 @@ def make_scheduling_decision():
             add_to_ready_queue(preempted_task) # Put it back in ready queue
 
             # Start the new highest priority task
-            running_task = remove_highest_priority_ready_task()
+            running_task = pop_highest_priority_ready_task()
             running_task.state = 'RUNNING'
             print(f"{CURRENT_TIME:.4f}: Starting Task {running_task._id} (Rem WCET: {running_task.remaining_wcet:.4f})")
             completion_time = CURRENT_TIME + running_task.remaining_wcet
             schedule_event(completion_time, 'TASK_COMPLETION', running_task)
         else:
             # Running task continues (no preemption)
-            # print(f"{CURRENT_TIME:.4f}: Task {running_task._id} continues.")
             pass
 
 """Handles Component budget being replenished event"""
 def handle_budget_replenish(event: Event):
     try:
         assert type(event.data) == Component
+        #Dynamic variables to avoid changing original Component class
         event.data.current_budget = event.data.budget
+        event.data.next_replenish_time = CURRENT_TIME + event.data.period
 
-        schedule_event(Event(CURRENT_TIME+event.data.period, EventType.BUDGET_REPLENISH, event.data))
+        schedule_event(Event(event.data.next_replenish_time, EventType.BUDGET_REPLENISH, event.data))
 
         #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
 
