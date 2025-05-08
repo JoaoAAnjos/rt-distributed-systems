@@ -4,7 +4,7 @@ import os
 import csv
 
 from enum import Enum, auto
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Any
 from project_lib import (Core, Component, Task, initialize_csv_data, cores_registry, 
                          tasks_registry, components_registry, CURRENT_TIME)
 
@@ -49,10 +49,10 @@ class TaskExecution:
 
 class Event:
 
-    def __init__(self, time: float, event_type: EventType, task: Optional[TaskExecution] = None):
+    def __init__(self, time: float, event_type: EventType, data: Any):
         self.time = time
         self.type = event_type
-        self.task = task
+        self.data = data
 
 #   ------------------------------------------------------------------------------------
 #   Global variables
@@ -221,7 +221,8 @@ def initialize_simulation_state(target_core_id: str):
     
     core = cores_registry[target_core_id]
 
-    #Setup component task execution registry. This also initializes TaskExecution objects
+    #Setup component task execution registry. This also initializes TaskExecution objects and
+    #their respective task_arrival events, as the simulator has asynchronous start
     apply_action_on_tree(core.root_comp, initialize_taskexecs_registry)
     
     #Setup component ready queues
@@ -235,7 +236,9 @@ def initialize_simulation_state(target_core_id: str):
 
 #TODO Review this and add BUDGET_REPLENISH Event
 def handle_event(event: Event):
-    if event.type == EventType.TASK_ARRIVAL:
+    if event.type == EventType.BUDGET_REPLENISH:
+        handle_budget_replenish(event)
+    elif event.type == EventType.TASK_ARRIVAL:
         handle_task_arrival(CURRENT_TIME, event.task)
     elif event.type == EventType.TASK_COMPLETION:
         # Only handle if task didn't finish early during time update
@@ -247,8 +250,6 @@ def handle_event(event: Event):
                 print(f"Warning: Completion event for {event.task.id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
                 make_scheduling_decision() # Re-check who should run
             # else: Completion event might be stale due to preemption or early finish
-    elif event.type == EventType.BUDGET_REPLENISH:
-        handle_budget_replenish()
 
 #TODO REVIEW AND COMPLETE AFTER CHANGES
 """Decides which task to run next based on RM priority."""
@@ -382,10 +383,20 @@ def handle_task_completion(event_time: float, task: Task):
     # Trigger scheduling decision
     make_scheduling_decision()
 
-###################TODO#########################
 """Handles Component budget being replenished event"""
-def handle_budget_replenish():
-    return
+def handle_budget_replenish(event: Event):
+    try:
+    
+        assert type(event.data) == Component
+        event.data.remaining_budget = event.data.budget
+
+        #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
+
+    except AssertionError:
+            print("Error: Given parameters (Component) \
+                  didn't meet the requirements for instance.")
+    pass
+    
 
 #   ------------------------------------------------------------------------------------
 #   Simulation Results Output
