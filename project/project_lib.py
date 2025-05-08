@@ -40,7 +40,6 @@ class Component:
             assert type(component_id) == str
             self._component_id = component_id
 
-            #TODO See if this is really necessary, since you can find the core through the tree
             #   Core ID specification
             assert type(core_id) == str
             self._core_id = core_id
