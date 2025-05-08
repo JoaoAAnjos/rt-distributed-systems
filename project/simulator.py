@@ -74,7 +74,7 @@ running_task: Optional[TaskExecution] = None
 #  --------------------------------------------------------------------------------------
 
 """Gets the highest priority component, with a non-empty ready queue"""
-def get_highest_priority_component(root: Component) -> Component:
+def get_highest_priority_component() -> Component:
     def traverse(node: Component):
         nonlocal result
         priority_attr = None
@@ -92,8 +92,9 @@ def get_highest_priority_component(root: Component) -> Component:
         # If it's a leaf node
         if node.is_leaf():
             # Check if it's better than our current best candidate
-            if ready_queues.get(node._component_id) and (result is None or 
-                                                         getattr(node, priority_attr) < getattr(result, priority_attr)):
+            if (ready_queues.get(node._component_id) and 
+                node.current_budget > 0 and
+                (result is None or getattr(node, priority_attr) < getattr(result, priority_attr))):
                 result = node
             return
             
@@ -108,7 +109,7 @@ def get_highest_priority_component(root: Component) -> Component:
                     traverse(child)
         
     result = None
-    traverse(root)
+    traverse(core.root_comp)
     return result 
 
 
@@ -217,7 +218,7 @@ def run_simulation(target_core_id: str, maxSimTime: float):
     print("\n--- Starting RM Simulation Loop ---")
     while event_queue and CURRENT_TIME < maxSimTime + EPSILON:
         # Get next event
-        event = heapq.heappop(event_queue)
+        event = get_next_event()
 
         # --- Process time elapsed since last event ---
         if event.time > CURRENT_TIME:
@@ -304,49 +305,34 @@ def handle_event(event: Event):
                 make_scheduling_decision() # Re-check who should run
             # else: Completion event might be stale due to preemption or early finish
 
-#TODO REVIEW AND COMPLETE AFTER CHANGES
 """Decides which task should be running at current time, according to schedulers and priorities."""
 def make_scheduling_decision():
     global running_task, CURRENT_TIME
 
-    #TODO Find highest priority component
+    component = get_highest_priority_component()
+    ready_queue = ready_queues.get(component._component_id)
 
-    #TODO Find highest priority task in component
-    highest_ready = get_highest_priority_ready_task()
-
-    # print(f"DEBUG: Sched Decision at {CURRENT_TIME:.4f}. Running: {running_task._id if running_task else 'None'}. Highest Ready: {highest_ready._id if highest_ready else 'None'}")
+    highest_ready = get_highest_priority_ready_task(ready_queue)
 
     if running_task is None:
         if highest_ready:
             # Start the highest priority ready task
             running_task = pop_highest_priority_ready_task()
-            running_task.state = 'RUNNING'
-            print(f"{CURRENT_TIME:.4f}: Starting Task {running_task._id} (Rem WCET: {running_task.remaining_wcet:.4f})")
-            # Schedule its completion
-            completion_time = CURRENT_TIME + running_task.remaining_wcet
-            schedule_event(completion_time, 'TASK_COMPLETION', running_task)
+            running_task.state = TaskState.RUNNING
         else:
-            # Core is idle
-             # print(f"{CURRENT_TIME:.4f}: Core is Idle")
-            pass
+            running_task = None
     else: # A task is currently running
-        if highest_ready and highest_ready._priority < running_task._priority:
+        if highest_ready and highest_ready != running_task:
 
             # Stop the running task and put it back in the ready queue
             preempted_task = running_task
-            preempted_task.state = 'READY'
-            # WCET remaining was updated just before this decision
-            add_to_ready_queue(preempted_task) # Put it back in ready queue
+            preempted_task.state = TaskState.READY
+            # WCET remaining was updated just before this  TODO Review this comment
+            add_to_component_ready_queue(component, preempted_task)
 
             # Start the new highest priority task
             running_task = pop_highest_priority_ready_task()
-            running_task.state = 'RUNNING'
-            print(f"{CURRENT_TIME:.4f}: Starting Task {running_task._id} (Rem WCET: {running_task.remaining_wcet:.4f})")
-            completion_time = CURRENT_TIME + running_task.remaining_wcet
-            schedule_event(completion_time, 'TASK_COMPLETION', running_task)
-        else:
-            # Running task continues (no preemption)
-            pass
+            running_task.state = TaskState.RUNNING
 
 """Handles Component budget being replenished event"""
 def handle_budget_replenish(event: Event):
