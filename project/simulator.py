@@ -37,9 +37,11 @@ class TaskExecution:
         self.wcet = task._wcet / core._speed_factor
         self.absolute_deadline = CURRENT_TIME + task._deadline
         self.period = task._period
+        self.component_id = task._component_id
         
         self.state = TaskState.READY
         self.arrival_time = CURRENT_TIME
+        self.exec_time = self.wcet
         self.completion_times = 0.0
         self.exec_count = 0
         self.response_times = []
@@ -98,7 +100,7 @@ def get_highest_priority_component() -> Component:
                 result = node
             return
             
-        # Find child with minimum priority (highest priority)
+        # Find child with highest priority
         next_node = min(node.children, key=lambda x: getattr(x, priority_attr))
         traverse(next_node)
         
@@ -128,12 +130,19 @@ def add_to_component_ready_queue(component: Component, task_exec: TaskExecution)
 
     heapq.heappush(ready_queues.get(component._component_id), (priority, task_exec))
 
+
+"""Removes an element from a component's ready queue"""
+def remove_from_component_ready_queue(component: Component, task_exec: TaskExecution):
+    ready_queues.get(component._component_id, task_exec)
+
+
 """Gets the highest priority task from the ready queue without removing it."""
 def get_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
     if ready_queue:
         task = ready_queue[0] # Peek at the smallest element (highest priority)
         return task
     return None
+
 
 """Removes and returns the highest priority task from the ready queue."""
 def pop_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
@@ -142,10 +151,12 @@ def pop_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optiona
         return task
      return None
 
+
 """Adds an event to the event queue"""
 def schedule_event(event: Event):
     if event.time < SIMULATION_END_TIME + EPSILON:
         heapq.heappush(event_queue, (event.time, event))
+
 
 """Removes and returns the next event from the event queue"""
 def get_next_event() -> Optional[Event]:
@@ -154,12 +165,14 @@ def get_next_event() -> Optional[Event]:
     
     return None
 
+
 """Iterates through the component tree hierarchy, applying an operation on every node"""
 def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
     action(node)
     
     for child in node.children:
         apply_action_on_tree(child, action)
+
 
 """Iterates through the component tree hierarchy, finding the node that fits the condition.
     The condition is given as a callable that returns bool to allow more complex checks"""
@@ -169,7 +182,8 @@ def filter_tree_node(node: Component, action: Callable[[Component], bool]) -> Co
     else:
         for child in node.children:
             filter_tree_node(child, action)
-    
+
+
 """Sets up the TaskExecution objects in the registry for simulator execution"""
 def initialize_taskexecs_registry(component: Component):
 
@@ -187,6 +201,7 @@ def initialize_taskexecs_registry(component: Component):
 
         component_task_exec_registry[component._component_id] = component_taskexecs
 
+
 """Initializes the ready queue for a component, heapifying it"""
 def initialize_ready_queue(component: Component):
 
@@ -195,6 +210,7 @@ def initialize_ready_queue(component: Component):
         heapq.heapify(ready_queue)
 
         ready_queues[component._component_id] = ready_queue
+
 
 """Sets initial budget and schedules initial event for budget replenish"""
 def set_initial_remaining_budgets(component: Component):
@@ -287,13 +303,14 @@ def initialize_simulation_state(target_core_id: str):
     print("Simulation state initialized.")
     return True
 
+
 #TODO Review this and add BUDGET_REPLENISH Event
 """Handles the current event from the event queue"""
 def handle_event(event: Event):
     if event.type == EventType.BUDGET_REPLENISH:
         handle_budget_replenish(event)
     elif event.type == EventType.TASK_ARRIVAL:
-        handle_task_arrival(CURRENT_TIME, event.task)
+        handle_task_arrival(event)
     elif event.type == EventType.TASK_COMPLETION:
         # Only handle if task didn't finish early during time update
         if running_task and running_task._id == event.task.id:
@@ -304,6 +321,7 @@ def handle_event(event: Event):
                 print(f"Warning: Completion event for {event.task.id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
                 make_scheduling_decision() # Re-check who should run
             # else: Completion event might be stale due to preemption or early finish
+
 
 """Decides which task should be running at current time, according to schedulers and priorities."""
 def make_scheduling_decision():
@@ -334,6 +352,7 @@ def make_scheduling_decision():
             running_task = pop_highest_priority_ready_task()
             running_task.state = TaskState.RUNNING
 
+
 """Handles Component budget being replenished event"""
 def handle_budget_replenish(event: Event):
     try:
@@ -347,62 +366,54 @@ def handle_budget_replenish(event: Event):
         #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
 
     except AssertionError:
-            print("Error: Given parameters (Component) \
-                  didn't meet the requirements for instance.")
+            print("Error: Event data was not of type Component as expected")
     pass
     
 
 #TODO REVIEW AFTER CHANGES MADE
 """Handles a task arrival event."""
-def handle_task_arrival(event_time: float, task: Task):
-    # print(f"{event_time:.4f}: Task Arrival: {task._id} (Job {task.job_count + 1})")
+def handle_task_arrival(event: Event):
     global running_task
 
+    assert type(event.data) == TaskExecution 
+    task = event.data
+    component = components_registry.get(task.component_id)
+
     previous_job_overran = False
-    if task.state != 'IDLE':
+    if task.state != TaskState.IDLE:
         # Deadline miss detection for the previous job
         previous_job_overran = True
-        print(f"!!! Overrun: Task {task._id} arrived at {event_time:.4f} but previous job (state={task.state}) active. Deadline MISSED for previous job.")
         task.deadlines_missed += 1
 
         # --- Abort Policy ---
         # Common approach: Abort it to prioritize the new job.
 
-        if task.state == 'RUNNING':
+        if task.state == TaskState.RUNNING:
             # If the overrunning job was the one currently running
-            if running_task and running_task._id == task._id:
+            if running_task and running_task._id == task.id:
                 print(f"    Aborting currently RUNNING job of Task {task._id}.")
-                # A better DES would explicitly remove the specific completion event.
                 running_task = None # Make the core available
                 # Note: The task object itself still exists, but it's no longer tracked as running.
                 # We will reset its state below when the new job starts.
-        elif task.state == 'READY':
+        elif task.state == TaskState.READY:
             # If the overrunning job was preempted and in the ready queue
-            print(f"    Removing overdue READY job of Task {task._id} from ready queue.")
-            remove_task_from_ready_queue(task) # Remove the old instance
+            remove_from_component_ready_queue(component, task) # Remove the old instance
 
         # Task state will be reset to READY for the new job below.
 
     # --- Activate the NEW job ---
-    task.state = 'READY'
-    task.arrival_time = event_time
-    task.remaining_wcet = task._adjusted_wcet # New job gets full WCET
-    task.absolute_deadline = event_time + task._deadline # New job gets its own deadline
-    task.job_count += 1
+    task.state = TaskState.READY
+    task.arrival_time = event.time
+    task.exec_time = task.wcet
+    task.absolute_deadline = event.time + task.period # New job gets its own deadline. Under assumption period = deadline.
+    task.exec_count += 1
 
     # Add the NEW job instance to the ready queue
-    add_to_ready_queue(task)
+    add_to_component_ready_queue(component, task)
 
     # Schedule the NEXT arrival of this task
-    schedule_event(event_time + task._period, 'TASK_ARRIVAL', task)
-
-    # Trigger scheduling decision (because a new task is ready or core might be free)
-    if previous_job_overran and task.state == 'RUNNING':
-         # If we just aborted the running task, we definitely need to reschedule
-         make_scheduling_decision()
-    elif not running_task or task._priority < running_task._priority :
-         # If core is idle OR the new task has higher priority than running task
-         make_scheduling_decision()
+    schedule_event(Event(event.time + task.period, EventType.TASK_ARRIVAL, task))
+    
 
 #TODO REVIEW AFTER CHANGES MADE
 """Handles a task completion event."""
