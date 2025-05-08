@@ -53,6 +53,9 @@ class Component:
             assert type(budget) == int
             self.budget = budget
 
+            assert type(period) == float
+            self.period = period
+
             # Tree information (Children and Parent)
             self.parent = None
             self.children: List[Component] = []

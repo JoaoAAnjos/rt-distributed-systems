@@ -235,6 +235,7 @@ def initialize_simulation_state(target_core_id: str):
     return True
 
 #TODO Review this and add BUDGET_REPLENISH Event
+"""Handles the current event from the event queue"""
 def handle_event(event: Event):
     if event.type == EventType.BUDGET_REPLENISH:
         handle_budget_replenish(event)
@@ -298,6 +299,21 @@ def make_scheduling_decision():
             # print(f"{CURRENT_TIME:.4f}: Task {running_task._id} continues.")
             pass
 
+"""Handles Component budget being replenished event"""
+def handle_budget_replenish(event: Event):
+    try:
+        assert type(event.data) == Component
+        event.data.remaining_budget = event.data.budget
+
+        schedule_event(Event(CURRENT_TIME+event.data.period, EventType.BUDGET_REPLENISH, event.data))
+
+        #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
+
+    except AssertionError:
+            print("Error: Given parameters (Component) \
+                  didn't meet the requirements for instance.")
+    pass
+    
 
 #TODO REVIEW AFTER CHANGES MADE
 """Handles a task arrival event."""
@@ -383,20 +399,6 @@ def handle_task_completion(event_time: float, task: Task):
     # Trigger scheduling decision
     make_scheduling_decision()
 
-"""Handles Component budget being replenished event"""
-def handle_budget_replenish(event: Event):
-    try:
-    
-        assert type(event.data) == Component
-        event.data.remaining_budget = event.data.budget
-
-        #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
-
-    except AssertionError:
-            print("Error: Given parameters (Component) \
-                  didn't meet the requirements for instance.")
-    pass
-    
 
 #   ------------------------------------------------------------------------------------
 #   Simulation Results Output
