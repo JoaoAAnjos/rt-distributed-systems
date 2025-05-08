@@ -138,7 +138,7 @@ def dbf_task_EDF(component : Component):
 #   job is created for that task, and added to the active jobs list.
 def activate_task_jobs():
 
-    for task in tasks.values():
+    for task in tasks_registry.values():
         #   Cast to int to ensure that when working with float time_unit it still catches the period activation
         #   ATTENTION: As of now, this condition only works because of the assumption that time_unit will always be 1
         #   in the context of the exercise
@@ -199,7 +199,7 @@ def schedule_components(component_root : Component):
 #   and updates the job's execution time for simulation
 def handle_job(current_job: Job, time_unit: float):
     def update_component(job):
-        task = tasks.get(job._task_id)
+        task = tasks_registry.get(job._task_id)
         component = components.get(task._component_id)
 
         #   Every time a job is completed, the component's supply

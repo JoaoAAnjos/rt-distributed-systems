@@ -1,12 +1,20 @@
 import pandas as pd
 import os
 
-from typing import Dict,List
+from typing import Dict, List, Optional
+from enum import Enum, auto
+
+#   ------------------------------------------------------------------------------------
+#   Enums 
+#   ------------------------------------------------------------------------------------
+class Scheduler(Enum):
+    EDF = auto()
+    RM = auto()
 
 #   ------------------------------------------------------------------------------------
 #   Core class 
 #   ------------------------------------------------------------------------------------
-class Core():
+class Core:
     def __init__(self, identifier: str, speed_factor: float, scheduler: str):
         try:
             assert isinstance(identifier,str)
@@ -15,13 +23,8 @@ class Core():
             assert isinstance(speed_factor,float) and speed_factor > 0.0
             self._speed_factor = speed_factor
 
-            assert isinstance(scheduler, str)
-            self._scheduler = scheduler
-
             #   Create root component (0 interface)
-            self.root_comp = Component(self._core_id, self._scheduler, 0, 0, self._core_id, False)
-
-            cores[self._core_id] = self
+            self.root_comp = Component(self._core_id, scheduler, 0, 0, self._core_id, False)
 
         except AssertionError:
             print("Error: Given parameters (Core) \
@@ -31,12 +34,13 @@ class Core():
 #   Component
 #   ------------------------------------------------------------------------------------
 class Component:
-    def __init__(self, component_id: str, scheduler: str, budget: int, period: float, core_id: str, terminal: bool):
+    def __init__(self, component_id: str, scheduler: str, budget: int, period: float, core_id: str):
         try:
             #   Component ID specification
             assert type(component_id) == str
             self._component_id = component_id
 
+            #TODO See if this is really necessary, since you can find the core through the tree
             #   Core ID specification
             assert type(core_id) == str
             self._core_id = core_id
@@ -45,15 +49,11 @@ class Component:
             #   * EDF (Earliest Deadline First)
             #   * RM (Rate-Monotonic)
             assert type(scheduler) == str
-            self._scheduler = scheduler
+            self._scheduler = Scheduler[scheduler]
 
-            #   Boolean variable which indicates the component is terminal
-            #   (considered then a set of tasks) or not
-            assert type(terminal) == bool
-            self._is_terminal = terminal
-
-            #   Sub component list
-            self._sub_components: List = []
+            # Tree information (Children and Parent)
+            self.parent = None
+            self.children: List[Component] = []
 
             #   Interface definition (Half-half algorithm)
             self._interface = None
@@ -67,22 +67,20 @@ class Component:
             #   Obtain global provided resource from supply bound function
             self._provided_supply = 0.0
 
-            components[self._component_id] = self
-
         except AssertionError:
             print("Error: Given parameters (Component) \
                   didn't meet the requirements for instance.")
         pass
 
 
-    #   Add a child to the component's children (Task or Component)
-    def add_child(self,child):
-        if self._is_terminal:
-            assert isinstance(child,Task), "If terminal, child must be Task"
-        else:
-            assert isinstance(child,Component), "If terminal, child must be Component"
+    #   Add a child to the component's children
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
 
-        self._sub_components.append(child)
+    # Returns whether a component is a leaf or not (i.e. is terminal)  
+    def is_leaf(self):
+        return not self.children
 
             
 #   ------------------------------------------------------------------------------------
@@ -101,10 +99,10 @@ class Task:
             self._period = period
             self._deadline = period
             self._component_id = component_id
-            if priority is not None:
+            if priority is None:
+                self._priority = -1
+            else:
                 self._priority = priority
-            
-            self._priority = -1
 
             #   Initially define task as schedulable
             self._schedulable = True
@@ -112,33 +110,9 @@ class Task:
             #   Initialize it as -1 since this will be calculated by the simulator
             self._wcrt = -1
 
-            tasks[self._id] = self
-
         except AssertionError:
             print("Error: Given parameters (Task) \
                   didn't meet the requirements for instance.")
-
-#   ------------------------------------------------------------------------------------
-#   Job 
-#   ------------------------------------------------------------------------------------
-class Job:
-    def __init__(self, task_id, deadline, release_time):
-        try:
-            assert  type(task_id) == int and \
-                    type(deadline) == int and \
-                    type(release_time) == int
-            
-            self._task_id = task_id
-            self._deadline = deadline
-            self._release_time = release_time
-            self._exec_time = 0##################
-
-            jobs.append(self)
-
-        except AssertionError:
-            print("Error: Given parameters (Job) \
-                  didn't meet the requirements for instance.")
-
 
 #   ------------------------------------------------------------------------------------
 #   Resource Paradigm employed in HSS (only BDR model is valid)
@@ -175,14 +149,15 @@ class Resource_paradigm:
 #   ------------------------------------------------------------------------------------
 
 # Global variable for cores
-cores: Dict[str, Core] = {}
+cores_registry: Dict[str, Core] = {}
 #Global variable for components
-components: Dict[str, Component] = {}
+components_registry: Dict[str, Component] = {}
 # Global variable for tasks
-tasks: Dict[str, Task] = {}
-# Global variable for active jobs
-jobs: List[Job] = []
+tasks_registry: Dict[str, Task] = {}
+# Registry of Tasks associated with Component for terminal Components
+component_task_registry: Dict[str, List[Task]] = {}
 
+#Global time value for simulator usage
 CURRENT_TIME = 0.0
 
 #   ------------------------------------------------------------------------------------
@@ -201,6 +176,8 @@ def initialize_cores(df: pd.DataFrame):
             row["scheduler"]
         )
 
+        cores_registry[core._core_id] = core
+
 """
 Initializes components and adds them to hierarchy structure
 """
@@ -216,8 +193,10 @@ def initialize_components(df: pd.DataFrame):
             True
         )
 
-        core = cores.get(row["core_id"])
+        core = cores_registry.get(component._core_id)
         core.root_comp.add_child(component)
+
+        components_registry[component._component_id] = component
 
 """
 Initializes tasks and adds them to hierarchy structure
@@ -233,30 +212,18 @@ def initialize_tasks(df: pd.DataFrame):
             row["priority"]
         )
 
-        component = components.get(row["component_id"])
-        component.add_child(task)
+    tasks_registry[task._id] = task
 
-"""
-Initialize jobs for each task
-"""
-def initialize_jobs():
-
-    for task in tasks.values():
-        job = Job(
-            task._id,
-            task._period,
-            CURRENT_TIME
-        )
-
-        jobs.append(job)
+    component_task_registry.setdefault(task._component_id, []).append(task)
+        
 
 """
 Only works under the assumption that both the input folder is named 'input' and the files inside
 will be named architecture.csv, budgets.csv and tasks.csv, following the nomenclature on the test
-cases given by the teacher. When function has finished executing, all objects are created, added to
-global resources and organized in an hierarchical structure.
+cases given by the teacher. When function has finished executing, all objects from csv data are created, 
+added to global resources and organized in an hierarchical structure.
 """
-def initialize_data():
+def initialize_csv_data():
 
     # Get the directory where the Python script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))

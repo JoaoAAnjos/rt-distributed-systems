@@ -1,162 +1,254 @@
 from project_lib import *
 import heapq
-import math
 import os
 import csv
-from typing import List, Optional, Tuple
-from project_lib import (Core, Component, Task, Job, Resource_paradigm,
-                         initialize_data, cores, tasks as global_tasks,
-                         components as global_components, CURRENT_TIME)
+
+from enum import Enum, auto
+from typing import List, Optional, Callable
+from project_lib import (Core, Component, Task, initialize_csv_data, cores_registry, 
+                         tasks_registry, components_registry, CURRENT_TIME)
 
 # --- Simulation Constants ---
 SIMULATION_END_TIME = 1000.0  
 EPSILON = 1e-9              # For floating point comparisons
 
-# --- Event Definition ---
-# Using a tuple: (time, event_type, task_object)
-# event_type can be 'TASK_ARRIVAL', 'TASK_COMPLETION', 'SIM_END'
+#   --------------------
+#   Enums
+#   --------------------
 
-# --- Simulator State ---
-event_queue: List[Tuple[int, str, Optional[Task]]] = []
-ready_queue: List[Tuple[int, Task]] = [] # Min-heap based on priority
-running_task: Optional[Task] = None
-sim_cores: dict[str, Core] = {} # Store cores relevant to this sim run
-sim_tasks: dict[str, Task] = {} # Store tasks relevant to this sim run
+class TaskState(Enum):
+    IDLE = auto()
+    READY = auto()
+    RUNNING = auto()
 
-# ------------------------
-# --- Helper Functions ---
-# ------------------------
+class EventType(Enum):
+    TASK_ARRIVAL = auto()
+    TASK_COMPLETION = auto()
+    BUDGET_REPLENISH = auto()
 
-"""Retrieves all Task objects associated with a given core_id."""
-def get_tasks_for_core(core_id: str) -> List[Task]:
-    core_tasks = []
-    if core_id not in sim_cores:
-        print(f"Warning: Core {core_id} not found during task retrieval.")
-        return []
-    # Check if core_id is valid
-    for comp in global_components.values():
-        if comp._core_id == core_id:
-            # Check if component has tasks
-            if hasattr(comp, '_sub_components'):
-                 for child in comp._sub_components:
-                     if isinstance(child, Task) and child._id in global_tasks:
-                         # Ensure we use the global task object
-                         core_tasks.append(global_tasks[child._id])
-            else:
-                 print(f"Warning: Component {comp._component_id} lacks '_sub_components'. Cannot find its tasks.")
-    # If no tasks found, print a warning
-    if not core_tasks:
-         print(f"Warning: No tasks found associated with {core_id}.")
-    return core_tasks
+#   ------------------------------------------------------------------------------------
+#   Classes
+#   ------------------------------------------------------------------------------------
 
-"""Adds an event to the global event queue."""
-def schedule_event(time: float, event_type: str, task: Optional[Task] = None):
-    if time < SIMULATION_END_TIME + EPSILON:
-        heapq.heappush(event_queue, (time, event_type, task))
+class TaskExecution:
 
-"""Adds a task to the ready queue (max-heap based on priority)."""
-def add_to_ready_queue(task: Task):
-    heapq.heappush(ready_queue, (task._priority, task))
+    def __init__(self, task: Task):
+        self.id = task._id
+        self.wcet = task._wcet / core._speed_factor
+        self.absolute_deadline = CURRENT_TIME + task._deadline
+        self.period = task._period
+        
+        self.state = TaskState.READY
+        self.arrival_time = CURRENT_TIME
+        self.completion_times = 0.0
+        self.exec_count = 0
+        self.response_times = []
+        self.deadlines_met = 0
+        self.deadlines_missed = 0
+        self.last_completion_event_time = 0
+
+class Event:
+
+    def __init__(self, time: float, event_type: EventType, task: Optional[TaskExecution] = None):
+        self.time = time
+        self.type = event_type
+        self.task = task
+
+#   ------------------------------------------------------------------------------------
+#   Global variables
+#   ------------------------------------------------------------------------------------
+
+# Queue holding the events for simulation. This is a priority queue (min-heap based on event.time)
+event_queue: List[Event] = []
+# Registry of Tasks associated with Component for terminal Components
+component_task_exec_registry: Dict[str, List[TaskExecution]] = {}
+# The queue of ready tasks for each terminal Component
+ready_queues: Dict[str, List[Task]] = {}
+# The root core
+core: Core = None
+# The TaskExecution currently running.
+running_task: Optional[TaskExecution] = None
+
+#  --------------------------------------------------------------------------------------
+#  Helper Functions
+#  --------------------------------------------------------------------------------------
+
+"""Adds a task to a component's ready queue"""
+def add_to_component_ready_queue(component: Component, task_exec: TaskExecution):
+    priority = None
+    
+    if component._scheduler == Scheduler.RM:
+        priority = task_exec.period
+    elif component._scheduler == Scheduler.EDF:
+        priority = task_exec.absolute_deadline
+
+    if priority is None:
+        print(f"Error: Target component '{component._component_id}' has a uncovered scheduler.")
+        return
+
+    heapq.heappush(ready_queues.get(component._component_id), (priority, task_exec))
 
 """Gets the highest priority task from the ready queue without removing it."""
-def get_highest_priority_ready_task() -> Optional[Task]:
+def get_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
     if ready_queue:
         task = ready_queue[0] # Peek at the smallest element (highest priority)
         return task
     return None
 
 """Removes and returns the highest priority task from the ready queue."""
-def remove_highest_priority_ready_task() -> Optional[Task]:
+def remove_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
      if ready_queue:
         task = heapq.heappop(ready_queue)
         return task
      return None
 
-"""Removes a specific task from the ready queue (inefficient)."""
-def remove_task_from_ready_queue(task_to_remove: Task):
-    global ready_queue
-    new_ready_queue = []
-    found = False
-    while ready_queue:
-        priority, task = heapq.heappop(ready_queue)
-        if task._id == task_to_remove._id:
-            found = True
-            # Don't add it back
-        else:
-            heapq.heappush(new_ready_queue, (priority, task))
-    ready_queue = new_ready_queue
-    # if not found:
-    #     print(f"Warning: Task {task_to_remove._id} not found in ready queue for removal.")
+"""Adds an event to the event queue"""
+def schedule_event(event: Event):
+    if event.time < SIMULATION_END_TIME + EPSILON:
+        heapq.heappush(event_queue, (event.time, event))
+
+"""Removes and returns the next event from the event queue"""
+def get_next_event() -> Optional[Event]:
+    if event_queue:
+        return heapq.heappop(event_queue)
+    
+    return None
+
+"""Iterates through the component tree hierarchy, applying an operation on every node"""
+def apply_action_on_tree(node: Component, action: Callable):
+    action(node)
+    
+    for child in node.children:
+        apply_action_on_tree(child, action)
+    
+""" Sets up the TaskExecution objects in the registry for simulator execution."""
+def initialize_taskexecs_registry(component: Component):
+
+    if component.is_leaf():
+        component_tasks = component_task_registry.get(component._component_id)
+
+        component_taskexecs = []
+
+        for task in component_tasks:
+            task_exec = TaskExecution(task)
+
+            component_taskexecs.append(task_exec)
+
+            schedule_event(Event(0.0, EventType.TASK_ARRIVAL, task_exec))
+
+        component_task_exec_registry[component._component_id] = component_taskexecs
+
+"""Initializes the ready queues for each component, heapifying it"""
+def initialize_ready_queues(component: Component):
+
+    if component.is_leaf():
+        ready_queue = []
+        heapq.heapify(ready_queue)
+
+        ready_queues[component._component_id] = ready_queue
 
 # -----------------------------
 # --- Core Simulation Logic ---
 # -----------------------------
 
+"""Executes the RM simulation loop for the specified core."""
+def run_simulation(target_core_id: str):
+    global CURRENT_TIME, running_task
+
+    if not initialize_simulation_state(target_core_id):
+        return
+
+    print("\n--- Starting RM Simulation Loop ---")
+    while event_queue:
+        # Get next event
+        event = heapq.heappop(event_queue)
+
+        # --- Process time elapsed since last event ---
+        if event.time > CURRENT_TIME:
+            time_elapsed = event.time - CURRENT_TIME
+            
+            if running_task:
+                # print(f"DEBUG: Task {running_task._id} ran for {time_elapsed:.4f}. Rem WCET before: {running_task.remaining_wcet:.4f}")
+                executable_time = min(time_elapsed, running_task.remaining_wcet)
+                running_task.remaining_wcet -= executable_time
+                # print(f"DEBUG: Task {running_task._id} Rem WCET after: {running_task.remaining_wcet:.4f}")
+
+                # Check if the running task finished *during* this time slice
+                if running_task.remaining_wcet < EPSILON and executable_time < time_elapsed + EPSILON:
+                     # Task finished before the scheduled event
+                     finish_time = CURRENT_TIME + executable_time
+                     print(f"    Task {running_task._id} finished early at {finish_time:.4f}")
+                     CURRENT_TIME = finish_time
+                     handle_task_completion(CURRENT_TIME, running_task) # running_task becomes None here
+                     # Skip processing the original event for this task if it was its completion
+                     #TODO I have no idea what this task in the check is supposed to be. In the original code Filippo
+                     #did no variable with this name existed so I'm clueless
+                     if event.type == EventType.TASK_COMPLETION and event.task.id == task._id:
+                          continue # Skip the now redundant completion event
+
+            # Update current time AFTER potentially handling early completion
+            CURRENT_TIME = event.time # Advance time to the actual event time
+
+            handle_event(event)
+
+    CURRENT_TIME = min(CURRENT_TIME, SIMULATION_END_TIME)
+    print(f"\n--- Simulation End at {CURRENT_TIME:.4f} ---")
+    # Final statistics calculation/display happens outside this function
+
+
 """Prepares tasks and schedules initial events for the target core."""
 def initialize_simulation_state(target_core_id: str):
-    global running_task, event_queue, ready_queue, CURRENT_TIME, sim_tasks, sim_cores
-
+    global CURRENT_TIME, running_task, core
+    
+    #Reset variables
     CURRENT_TIME = 0.0
+    event_queue.clear()
+    component_task_exec_registry.clear()
+    ready_queues.clear()
     running_task = None
-    event_queue = []
-    ready_queue = []
+
+    #Heapify event_queue
     heapq.heapify(event_queue)
-    heapq.heapify(ready_queue)
-    sim_tasks = {}
-    sim_cores = {}
 
-
-    # 1. Find the target core
-    if target_core_id not in cores:
+    # Find the target core and setup root node information
+    if target_core_id not in cores_registry:
         print(f"Error: Target core '{target_core_id}' not found in loaded cores.")
         return False
-    target_core = cores[target_core_id]
-    sim_cores[target_core_id] = target_core
-    print(f"Simulating Core: {target_core_id} (Speed Factor: {target_core._speed_factor})")
+    
+    core = cores_registry[target_core_id]
 
-    # 2. Get tasks for the core
-    core_task_list = get_tasks_for_core(target_core_id)
-    if not core_task_list:
-        print(f"Error: No tasks found for core '{target_core_id}'. Aborting simulation.")
-        return False
-
-    # 3. Prepare tasks (priority, WCET adjustment, add dynamic state)
-    print("Preparing tasks:")
-    for task in core_task_list:
-        sim_tasks[task._id] = task # Keep track of tasks in this sim run
-
-        # Adjust WCET based on core speed
-        task._adjusted_wcet = task._wcet / target_core._speed_factor
-
-        # Add dynamic state attributes
-        task.state = 'IDLE' # States: IDLE, READY, RUNNING
-        task.remaining_wcet = 0.0
-        task.arrival_time = 0.0
-        task.completion_time = 0.0
-        task.absolute_deadline = 0.0
-        task.job_count = 0
-        # Statistics
-        task.response_times = []
-        task.deadlines_met = 0
-        task.deadlines_missed = 0
-        task.last_completion_event_time = -1.0 # To avoid double processing completion
-
-        print(f"  - Task: {task._id}, Period: {task._period}, Prio: {task._priority}, Adj WCET: {task._adjusted_wcet:.4f}")
-
-        # 4. Schedule initial arrival
-        schedule_event(0.0, 'TASK_ARRIVAL', task)
-
-    # 5. Schedule simulation end
-    schedule_event(SIMULATION_END_TIME, 'SIM_END')
+    #Setup component task execution registry. This also initializes TaskExecution objects
+    apply_action_on_tree(core.root_comp, initialize_taskexecs_registry())
+    
+    #Setup component ready queues
+    apply_action_on_tree(core.root_comp, initialize_ready_queues())  
 
     print("Simulation state initialized.")
     return True
 
+#TODO Review this and add BUDGET_REPLENISH Event
+def handle_event(event: Event):
+    if event.type == EventType.TASK_ARRIVAL:
+            handle_task_arrival(CURRENT_TIME, event.task)
+    elif event.type == EventType.TASK_COMPLETION:
+        # Only handle if task didn't finish early during time update
+        if running_task and running_task._id == event.task.id:
+            if abs(running_task.remaining_wcet) < EPSILON: # Should be zero if completion is accurate
+                handle_task_completion(CURRENT_TIME, event.task)
+            else:
+                # This might happen due to floating point or if preemption occured exactly here
+                print(f"Warning: Completion event for {event.task.id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
+                make_scheduling_decision() # Re-check who should run
+            # else: Completion event might be stale due to preemption or early finish
+
+#TODO REVIEW AND COMPLETE AFTER CHANGES
 """Decides which task to run next based on RM priority."""
 def make_scheduling_decision():
     global running_task, CURRENT_TIME
 
-    # Find highest priority task in ready queue
+    #TODO Find highest priority component
+
+    #TODO Find highest priority task in component
     highest_ready = get_highest_priority_ready_task()
 
     # print(f"DEBUG: Sched Decision at {CURRENT_TIME:.4f}. Running: {running_task._id if running_task else 'None'}. Highest Ready: {highest_ready._id if highest_ready else 'None'}")
@@ -197,6 +289,7 @@ def make_scheduling_decision():
             pass
 
 
+#TODO REVIEW AFTER CHANGES MADE
 """Handles a task arrival event."""
 def handle_task_arrival(event_time: float, task: Task):
     # print(f"{event_time:.4f}: Task Arrival: {task._id} (Job {task.job_count + 1})")
@@ -248,6 +341,7 @@ def handle_task_arrival(event_time: float, task: Task):
          # If core is idle OR the new task has higher priority than running task
          make_scheduling_decision()
 
+#TODO REVIEW AFTER CHANGES MADE
 """Handles a task completion event."""
 def handle_task_completion(event_time: float, task: Task):
     global running_task
@@ -279,67 +373,18 @@ def handle_task_completion(event_time: float, task: Task):
     # Trigger scheduling decision
     make_scheduling_decision()
 
-"""Executes the RM simulation loop for the specified core."""
-def run_simulation(target_core_id: str):
-    global CURRENT_TIME, running_task
+###################TODO#########################
+"""Handles Component budget being replenished event"""
+def handle_budget_replenish():
+    return
 
-    if not initialize_simulation_state(target_core_id):
-        return
+#   ------------------------------------------------------------------------------------
+#   Simulation Results Output
+#   ------------------------------------------------------------------------------------
 
-    print("\n--- Starting RM Simulation Loop ---")
-    while event_queue:
-        # Get next event
-        event_time, event_type, event_task = heapq.heappop(event_queue)
-
-        # Check for simulation end condition
-        if event_type == 'SIM_END' or event_time > SIMULATION_END_TIME + EPSILON :
-            CURRENT_TIME = min(event_time, SIMULATION_END_TIME) # Advance time to end
-            print(f"\n--- Simulation End at {CURRENT_TIME:.4f} ---")
-            break # Exit loop
-
-        # --- Process time elapsed since last event ---
-        if event_time > CURRENT_TIME:
-            time_elapsed = event_time - CURRENT_TIME
-            if running_task:
-                # print(f"DEBUG: Task {running_task._id} ran for {time_elapsed:.4f}. Rem WCET before: {running_task.remaining_wcet:.4f}")
-                executable_time = min(time_elapsed, running_task.remaining_wcet)
-                running_task.remaining_wcet -= executable_time
-                # print(f"DEBUG: Task {running_task._id} Rem WCET after: {running_task.remaining_wcet:.4f}")
-
-                # Check if the running task finished *during* this time slice
-                if running_task.remaining_wcet < EPSILON and executable_time < time_elapsed + EPSILON:
-                     # Task finished before the scheduled event
-                     finish_time = CURRENT_TIME + executable_time
-                     print(f"    Task {running_task._id} finished early at {finish_time:.4f}")
-                     CURRENT_TIME = finish_time
-                     handle_task_completion(CURRENT_TIME, running_task) # running_task becomes None here
-                     # Skip processing the original event for this task if it was its completion
-                     if event_type == 'TASK_COMPLETION' and event_task._id == task._id:
-                          continue # Skip the now redundant completion event
-
-            # Update current time AFTER potentially handling early completion
-            CURRENT_TIME = event_time # Advance time to the actual event time
-
-        # --- Process the event ---
-        #print(f"Processing Event: T={event_time:.4f}, Type={event_type}, Task={event_task._id if event_task else 'N/A'}")
-        if event_type == 'TASK_ARRIVAL':
-            handle_task_arrival(CURRENT_TIME, event_task)
-        elif event_type == 'TASK_COMPLETION':
-            # Only handle if task didn't finish early during time update
-             if running_task and running_task._id == event_task._id:
-                 if abs(running_task.remaining_wcet) < EPSILON: # Should be zero if completion is accurate
-                    handle_task_completion(CURRENT_TIME, event_task)
-                 else:
-                      # This might happen due to floating point or if preemption occured exactly here
-                      print(f"Warning: Completion event for {event_task._id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
-                      make_scheduling_decision() # Re-check who should run
-             # else: Completion event might be stale due to preemption or early finish
-
-    print("--- Simulation Loop Finished ---")
-    # Final statistics calculation/display happens outside this function
-
+#TODO REVIEW AT END OF SIMULATOR CODE
 """Calculates results and saves them to a CSV file."""
-def save_results_to_csv(filename="solution.csv"):
+def save_results_to_csv(filename="results_simulator.csv"):
     print(f"\n--- Saving Simulation Results to {filename} ---")
 
     task_results_data = []
@@ -418,11 +463,12 @@ def save_results_to_csv(filename="solution.csv"):
     except Exception as e:
         print(f"An unexpected error occurred while writing CSV: {e}")
 
+
 # ----------------------
 # --- Main Execution ---
 # ----------------------
 
-
+#TODO REVIEW AT END OF OTHER CODE
 if __name__ == "__main__":
     # Ensure input directory and files exist (create dummies if needed)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -435,10 +481,10 @@ if __name__ == "__main__":
 
     # --- Initialize data using the library ---
     print("Initializing data from CSV files...")
-    initialize_data()
+    initialize_csv_data()
     print("Data initialization complete.")
     print(f"Loaded Cores: {list(cores.keys())}")
-    print(f"Loaded Tasks: {list(global_tasks.keys())}")
+    print(f"Loaded Tasks: {list(tasks_registry.keys())}")
 
     # --- Run the simulation for a specific core ---
     target_core = "Core_1" # Specify the core ID to simulate
