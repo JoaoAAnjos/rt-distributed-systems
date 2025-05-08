@@ -147,9 +147,12 @@ def initialize_ready_queue(component: Component):
 
         ready_queues[component._component_id] = ready_queue
 
+"""Sets initial budget and schedules initial event for budget replenish"""
 def set_initial_remaining_budgets(component: Component):
 
-    component.remaining_budget = component.budget
+    component.current_budget = component.budget
+
+    schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
 
 # -----------------------------
 # --- Core Simulation Logic ---
@@ -222,7 +225,7 @@ def initialize_simulation_state(target_core_id: str):
     core = cores_registry[target_core_id]
 
     #Setup component task execution registry. This also initializes TaskExecution objects and
-    #their respective task_arrival events, as the simulator has asynchronous start
+    #their respective task_arrival events, as the simulator has synchronous start
     apply_action_on_tree(core.root_comp, initialize_taskexecs_registry)
     
     #Setup component ready queues
@@ -303,7 +306,7 @@ def make_scheduling_decision():
 def handle_budget_replenish(event: Event):
     try:
         assert type(event.data) == Component
-        event.data.remaining_budget = event.data.budget
+        event.data.current_budget = event.data.budget
 
         schedule_event(Event(CURRENT_TIME+event.data.period, EventType.BUDGET_REPLENISH, event.data))
 
