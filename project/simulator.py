@@ -244,11 +244,10 @@ def initialize_ready_queue(component: Component):
 """Sets initial budget and schedules initial event for budget replenish."""
 def set_initial_remaining_budgets(component: Component):
 
-    if component != core.root_comp:
+    component.current_budget = component.budget
+    component.next_replenish_time = component.period
 
-        component.current_budget = component.budget
-        component.next_replenish_time = component.period
-
+    if (component != core.root_comp):
         schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
 
 
@@ -327,6 +326,7 @@ def initialize_simulation_state(target_core_id: str):
 
 """Processes the passed time between current time and what should be the next event."""
 def process_idle_time(elapsed_time: float):
+    global CURRENT_TIME, running_task
 
     if running_task is None:
         return
@@ -374,10 +374,13 @@ def handle_event(event: Event):
 def make_scheduling_decision():
     global running_task, CURRENT_TIME
 
+    highest_ready = None
     component = get_highest_priority_component()
-    ready_queue = ready_queues.get(component._component_id)
 
-    highest_ready = peek_highest_priority_ready_task(ready_queue)
+    if component is not None:
+        ready_queue = ready_queues.get(component._component_id)
+
+        highest_ready = peek_highest_priority_ready_task(ready_queue)
 
     if running_task is None:
         if highest_ready:
@@ -524,7 +527,7 @@ def save_results_to_csv(filename="results_simulator.csv"):
                 print(f"Warning: Task {task_exec.id} not found in tasks_registry during results saving.")
                 task_name = task_exec.id # Fallback to ID
             else:
-                task_name = task_obj._name
+                task_name = task_obj._id
 
             task_schedulable_by_sim = 1 if task_exec.deadlines_missed == 0 else 0
             
