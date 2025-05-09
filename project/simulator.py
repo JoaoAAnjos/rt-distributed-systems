@@ -42,12 +42,11 @@ class TaskExecution:
         self.state = TaskState.READY
         self.arrival_time = CURRENT_TIME
         self.exec_time = self.wcet
-        self.completion_times = 0.0
         self.exec_count = 0
+        self.completion_times = []
         self.response_times = []
         self.deadlines_met = 0
         self.deadlines_missed = 0
-        self.last_completion_event_time = 0
 
 class Event:
 
@@ -370,7 +369,6 @@ def handle_budget_replenish(event: Event):
     pass
     
 
-#TODO REVIEW AFTER CHANGES MADE
 """Handles a task arrival event."""
 def handle_task_arrival(event: Event):
     global running_task
@@ -379,14 +377,12 @@ def handle_task_arrival(event: Event):
     task = event.data
     component = components_registry.get(task.component_id)
 
-    previous_job_overran = False
     if task.state != TaskState.IDLE:
         # Deadline miss detection for the previous job
-        previous_job_overran = True
         task.deadlines_missed += 1
 
         # --- Abort Policy ---
-        # Common approach: Abort it to prioritize the new job.
+        # Approach: Abort it to prioritize the new job.
 
         if task.state == TaskState.RUNNING:
             # If the overrunning job was the one currently running
@@ -415,37 +411,21 @@ def handle_task_arrival(event: Event):
     schedule_event(Event(event.time + task.period, EventType.TASK_ARRIVAL, task))
     
 
-#TODO REVIEW AFTER CHANGES MADE
 """Handles a task completion event."""
-def handle_task_completion(event_time: float, task: Task):
+def handle_task_completion(event: Event):
     global running_task
 
-    # Check if this completion is valid (task must be RUNNING)
-    # Also check if we already processed a completion for this exact time (potential float issue)
-    if task.state != 'RUNNING' or running_task is None or running_task._id != task._id \
-       or abs(event_time - task.last_completion_event_time) < EPSILON:
-        # print(f"DEBUG: Ignoring stale/duplicate completion for {task._id} at {event_time:.4f}")
-        return # Stale event or already processed
+    assert type(event.data) == TaskExecution 
+    task = event.data
 
-    print(f"{event_time:.4f}: Task Completion: {task._id} (Job {task.job_count})")
-    task.last_completion_event_time = event_time # Mark as processed
-
-    task.state = 'IDLE'
-    task.completion_time = event_time
-    response_time = task.completion_time - task.arrival_time
+    task.state = TaskState.IDLE
+    response_time = event.time - task.arrival_time
+    task.completion_times.append(event.time)
     task.response_times.append(response_time)
+    task.deadlines_met += 1
 
-    # Check deadline
-    if event_time > task.absolute_deadline + EPSILON:
-        task.deadlines_missed += 1
-        print(f"!!! Deadline Missed: {task._id} (Job {task.job_count}) finished at {event_time:.4f}, deadline was {task.absolute_deadline:.4f}")
-    else:
-        task.deadlines_met += 1
-
-    running_task = None # Core becomes free
-
-    # Trigger scheduling decision
-    make_scheduling_decision()
+    if running_task == task:
+        running_task = None # Core becomes free
 
 
 #   ------------------------------------------------------------------------------------
