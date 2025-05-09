@@ -17,14 +17,12 @@ class Scheduler(Enum):
 class Core:
     def __init__(self, identifier: str, speed_factor: float, scheduler: str):
         try:
-            assert isinstance(identifier,str)
             self._core_id = identifier
 
-            assert isinstance(speed_factor,float) and speed_factor > 0.0
             self._speed_factor = speed_factor
 
             #   Create root component (0 interface)
-            self.root_comp = Component(self._core_id, scheduler, 0, 0, self._core_id, False)
+            self.root_comp = Component(self._core_id, scheduler, 0, 0, self._core_id)
 
         except AssertionError:
             print("Error: Given parameters (Core) \
@@ -37,24 +35,19 @@ class Component:
     def __init__(self, component_id: str, scheduler: str, budget: int, period: float, core_id: str):
         try:
             #   Component ID specification
-            assert type(component_id) == str
             self._component_id = component_id
 
             #   Core ID specification
-            assert type(core_id) == str
             self._core_id = core_id
             
             #   Scheduler definition (string), can be:
             #   * EDF (Earliest Deadline First)
             #   * RM (Rate-Monotonic)
-            assert type(scheduler) == str
             self._scheduler = Scheduler[scheduler]
 
-            assert type(budget) == int
             self.budget = budget
 
-            assert type(period) == float
-            self.period = period
+            self.period = float(period)
 
             # Tree information (Children and Parent)
             self.parent = None
@@ -94,11 +87,6 @@ class Component:
 class Task:
     def __init__(self, id: str, wcet: float, period: float, component_id: str, priority: int):
         try:
-            assert  type(id) == str and \
-                    type(wcet) == float and \
-                    type(period) == float and \
-                    type(component_id) == str
-
             self._id = id
             self._wcet = wcet
             self._period = period
@@ -194,8 +182,7 @@ def initialize_components(df: pd.DataFrame):
             row["scheduler"],
             row["budget"],
             row["period"],
-            row["core_id"],
-            True
+            row["core_id"]
         )
 
         core = cores_registry.get(component._core_id)
@@ -217,9 +204,9 @@ def initialize_tasks(df: pd.DataFrame):
             row["priority"]
         )
 
-    tasks_registry[task._id] = task
+        tasks_registry[task._id] = task
 
-    component_task_registry.setdefault(task._component_id, []).append(task)
+        component_task_registry.setdefault(task._component_id, []).append(task)
         
 
 """

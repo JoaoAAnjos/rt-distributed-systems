@@ -2,6 +2,7 @@ from project_lib import *
 import heapq
 import os
 import csv
+import sys
 
 from enum import Enum, auto
 from typing import List, Optional, Callable, Any
@@ -38,6 +39,7 @@ class TaskExecution:
         self.absolute_deadline = CURRENT_TIME + task._deadline
         self.period = task._period
         self.component_id = task._component_id
+        self.schedulable = True
         
         self.state = TaskState.READY
         self.arrival_time = CURRENT_TIME
@@ -48,12 +50,24 @@ class TaskExecution:
         self.deadlines_met = 0
         self.deadlines_missed = 0
 
+    def __lt__(self, other):
+        component = components_registry.get(self.component_id)
+
+        if component._scheduler == Scheduler.RM:
+            return self.period < other.period
+        elif component._scheduler == Scheduler.EDF:
+            return self.absolute_deadline < other.absolute_deadline
+
+
 class Event:
 
     def __init__(self, time: float, event_type: EventType, data: Any):
         self.time = time
         self.type = event_type
         self.data = data
+
+    def __lt__(self, other):
+        return self.time < other.time
 
 #   ------------------------------------------------------------------------------------
 #   Global variables
@@ -74,7 +88,7 @@ running_task: Optional[TaskExecution] = None
 #  Helper Functions
 #  --------------------------------------------------------------------------------------
 
-"""Gets the highest priority component, with a non-empty ready queue"""
+"""Gets the highest priority component, with a non-empty ready queue."""
 def get_highest_priority_component() -> Component:
     def traverse(node: Component):
         nonlocal result
@@ -94,7 +108,7 @@ def get_highest_priority_component() -> Component:
         if node.is_leaf():
             # Check if it's better than our current best candidate
             if (ready_queues.get(node._component_id) and 
-                node.current_budget > 0 and
+                get_node_available_resources(node) > 0 and
                 (result is None or getattr(node, priority_attr) < getattr(result, priority_attr))):
                 result = node
             return
@@ -114,29 +128,18 @@ def get_highest_priority_component() -> Component:
     return result 
 
 
-"""Adds a task to a component's ready queue"""
+"""Adds a task to a component's ready queue."""
 def add_to_component_ready_queue(component: Component, task_exec: TaskExecution):
-    priority = None
-    
-    if component._scheduler == Scheduler.RM:
-        priority = task_exec.period
-    elif component._scheduler == Scheduler.EDF:
-        priority = task_exec.absolute_deadline
-
-    if priority is None:
-        print(f"Error: Target component '{component._component_id}' has an uncovered scheduler.")
-        return
-
-    heapq.heappush(ready_queues.get(component._component_id), (priority, task_exec))
+    heapq.heappush(ready_queues.get(component._component_id), task_exec)
 
 
-"""Removes an element from a component's ready queue"""
+"""Removes an element from a component's ready queue."""
 def remove_from_component_ready_queue(component: Component, task_exec: TaskExecution):
     ready_queues.get(component._component_id, task_exec)
 
 
 """Gets the highest priority task from the ready queue without removing it."""
-def get_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
+def peek_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
     if ready_queue:
         task = ready_queue[0] # Peek at the smallest element (highest priority)
         return task
@@ -151,19 +154,21 @@ def pop_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optiona
      return None
 
 
-"""Adds an event to the event queue"""
+"""Adds an event to the event queue."""
 def schedule_event(event: Event):
     if event.time < SIMULATION_END_TIME:
-        heapq.heappush(event_queue, (event.time, event))
+        heapq.heappush(event_queue, event)
 
-"""Peeks at the next event on the event queue"""
+
+"""Peeks at the next event on the event queue."""
 def peek_next_event() -> Optional[Event]:
     if event_queue:
         return event_queue[0]
     
     return None
 
-"""Removes and returns the next event from the event queue"""
+
+"""Removes and returns the next event from the event queue."""
 def get_next_event() -> Optional[Event]:
     if event_queue:
         return heapq.heappop(event_queue)
@@ -171,7 +176,7 @@ def get_next_event() -> Optional[Event]:
     return None
 
 
-"""Iterates through the component tree hierarchy, applying an operation on every node"""
+"""Iterates through the component tree hierarchy downwards, applying an operation on every node."""
 def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
     action(node)
     
@@ -179,8 +184,27 @@ def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
         apply_action_on_tree(child, action)
 
 
+"""Calculates the available resources for a node and returns it."""
+def get_node_available_resources(node: Component) -> int:
+    def traverse(node: Component):
+        nonlocal result
+
+        if node == core.root_comp:
+            return
+        
+        #Gets the lowest possible budget value in the tree, by checking the budget available from parents
+        if node.current_budget < result:
+            result = node.current_budget
+
+        traverse(node.parent)
+
+    result = sys.maxsize
+    traverse(node)
+    return result
+
+
 """Iterates through the component tree hierarchy, finding the node that fits the condition.
-    The condition is given as a callable that returns bool to allow more complex checks"""
+    The condition is given as a callable that returns bool to allow more complex checks."""
 def filter_tree_node(node: Component, action: Callable[[Component], bool]) -> Component:
     if action(node):
         return node
@@ -189,7 +213,7 @@ def filter_tree_node(node: Component, action: Callable[[Component], bool]) -> Co
             filter_tree_node(child, action)
 
 
-"""Sets up the TaskExecution objects in the registry for simulator execution"""
+"""Sets up the TaskExecution objects in the registry for simulator execution."""
 def initialize_taskexecs_registry(component: Component):
 
     if component.is_leaf():
@@ -207,7 +231,7 @@ def initialize_taskexecs_registry(component: Component):
         component_task_exec_registry[component._component_id] = component_taskexecs
 
 
-"""Initializes the ready queue for a component, heapifying it"""
+"""Initializes the ready queue for a component, heapifying it."""
 def initialize_ready_queue(component: Component):
 
     if component.is_leaf():
@@ -217,13 +241,22 @@ def initialize_ready_queue(component: Component):
         ready_queues[component._component_id] = ready_queue
 
 
-"""Sets initial budget and schedules initial event for budget replenish"""
+"""Sets initial budget and schedules initial event for budget replenish."""
 def set_initial_remaining_budgets(component: Component):
 
     component.current_budget = component.budget
     component.next_replenish_time = component.period
 
     schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
+
+
+"""Reduces a component's current budget and its respective parent component's budget by a given value"""
+def reduce_current_hierarchy_budget(component: Component, value: int):
+
+    if component != core.root_comp:
+        component.current_budget -= value
+        reduce_current_hierarchy_budget(component.parent, value)
+
 
 # -----------------------------
 # --- Core Simulation Logic ---
@@ -290,7 +323,7 @@ def initialize_simulation_state(target_core_id: str):
     print("Simulation state initialized.")
     return True
 
-"""Processes the passed time between current time and what should be the next event"""
+"""Processes the passed time between current time and what should be the next event."""
 def process_idle_time(elapsed_time: float):
 
     if running_task is None:
@@ -299,18 +332,21 @@ def process_idle_time(elapsed_time: float):
     #Get component to which current running task belongs
     component = components_registry.get(running_task.component_id)
 
-    execution_slice = min(running_task.exec_time, component.current_budget, elapsed_time)
+    available_budget = get_node_available_resources(component)
+
+    #Get the lowest budget in the running component hierarchy. This tells us how much available resources we have to run the task
+    execution_slice = min(running_task.exec_time, available_budget, elapsed_time)
 
     #Update task and component based on the available execution_slice
     running_task.exec_time -= execution_slice
-    component.current_budget -= execution_slice
+    reduce_current_hierarchy_budget(component, execution_slice)
 
     #Update current time
     CURRENT_TIME += execution_slice
 
     if running_task.exec_time <= 0:
         schedule_event(Event(CURRENT_TIME, EventType.TASK_COMPLETION, running_task))
-    elif component.current_budget <= 0:
+    elif available_budget - execution_slice <= 0:
         running_task.state = TaskState.READY
         add_to_component_ready_queue(component, running_task)
         
@@ -322,7 +358,7 @@ def process_idle_time(elapsed_time: float):
 
 
 
-"""Handles the current event from the event queue"""
+"""Handles the current event from the event queue."""
 def handle_event(event: Event):
     if event.type == EventType.BUDGET_REPLENISH:
         handle_budget_replenish(event)
@@ -339,12 +375,12 @@ def make_scheduling_decision():
     component = get_highest_priority_component()
     ready_queue = ready_queues.get(component._component_id)
 
-    highest_ready = get_highest_priority_ready_task(ready_queue)
+    highest_ready = peek_highest_priority_ready_task(ready_queue)
 
     if running_task is None:
         if highest_ready:
             # Start the highest priority ready task
-            running_task = pop_highest_priority_ready_task()
+            running_task = pop_highest_priority_ready_task(ready_queue)
             running_task.state = TaskState.RUNNING
         else:
             running_task = None
@@ -358,11 +394,11 @@ def make_scheduling_decision():
             add_to_component_ready_queue(component, preempted_task)
 
             # Start the new highest priority task
-            running_task = pop_highest_priority_ready_task()
+            running_task = pop_highest_priority_ready_task(ready_queue)
             running_task.state = TaskState.RUNNING
 
 
-"""Handles Component budget being replenished event"""
+"""Handles Component budget being replenished event."""
 def handle_budget_replenish(event: Event):
     try:
         assert type(event.data) == Component
@@ -371,9 +407,6 @@ def handle_budget_replenish(event: Event):
         event.data.next_replenish_time = CURRENT_TIME + event.data.period
 
         schedule_event(Event(event.data.next_replenish_time, EventType.BUDGET_REPLENISH, event.data))
-
-        #TODO A BUDGET REPLENISH HAS TO FORCE A RECALCULATION OF THE CURRENT TASK TO BE RUN
-
     except AssertionError:
             print("Error: Event data was not of type Component as expected")
     pass
@@ -390,6 +423,7 @@ def handle_task_arrival(event: Event):
     if task.state != TaskState.IDLE:
         # Deadline miss detection for the previous job
         task.deadlines_missed += 1
+        task.schedulable = False
 
         # --- Abort Policy ---
         # Approach: Abort it to prioritize the new job.
@@ -442,41 +476,111 @@ def handle_task_completion(event: Event):
 #   Simulation Results Output
 #   ------------------------------------------------------------------------------------
 
-#TODO REVIEW AT END OF SIMULATOR CODE
 """Calculates results and saves them to a CSV file."""
 def save_results_to_csv(filename="results_simulator.csv"):
-    return
+    # Determine if the file exists to decide whether to write a header
+    file_exists = os.path.isfile(filename)
 
+    rows_to_write = []
+
+    # Iterate through components to determine component_schedulable
+    # This requires iterating tasks per component first
+    component_schedulability_map = {}
+    for comp_id, task_exec_list in component_task_exec_registry.items():
+        if not task_exec_list: # Should not happen if initialized correctly
+            component_schedulability_map[comp_id] = True # Or False, depends on definition
+            continue
+        
+        all_tasks_in_comp_schedulable = True
+        for task_exec in task_exec_list:
+            # A task is considered schedulable by the simulator if it missed no deadlines
+            # or if a more lenient definition is used (e.g. some missed deadlines are acceptable for soft tasks)
+            # For this implementation, we'll assume schedulable = 0 deadlines missed.
+            if task_exec.deadlines_missed > 0:
+                all_tasks_in_comp_schedulable = False
+                break
+        component_schedulability_map[comp_id] = all_tasks_in_comp_schedulable
+
+    # Now prepare rows for CSV
+    for comp_id, task_exec_list in component_task_exec_registry.items():
+        component_obj = components_registry.get(comp_id) # Get the original Component object
+        if not component_obj:
+            print(f"Warning: Component {comp_id} not found in components_registry during results saving.")
+            continue
+
+        # Ensure this component actually ran on the target_core_id for which run_simulation was called
+        # This check is a bit indirect here, as components are assigned to cores,
+        # and component_task_exec_registry is global.
+        # A better way might be to pass the core's tasks directly.
+        # For now, we assume component_task_exec_registry is populated relevant to the last run_simulation call.
+        # If component_obj._core_id != target_core_id: # This check assumes Component class has _core_id
+        #    continue
+
+        for task_exec in task_exec_list:
+            task_obj = tasks_registry.get(task_exec.id) # Get original Task object for its name
+            if not task_obj:
+                print(f"Warning: Task {task_exec.id} not found in tasks_registry during results saving.")
+                task_name = task_exec.id # Fallback to ID
+            else:
+                task_name = task_obj._name
+
+            task_schedulable_by_sim = 1 if task_exec.deadlines_missed == 0 else 0
+            
+            avg_response_time = 0.0
+            max_response_time = 0.0
+            if task_exec.response_times:
+                avg_response_time = sum(task_exec.response_times) / len(task_exec.response_times)
+                max_response_time = max(task_exec.response_times)
+
+            component_schedulable = 1 if component_schedulability_map.get(comp_id, False) else 0
+
+            rows_to_write.append({
+                'task_name': task_name,
+                'component_id': comp_id,
+                'Core_id': core._core_id, # Use the core_id for which simulation was run
+                'task_schedulable': task_schedulable_by_sim,
+                'avg_response_time': f"{avg_response_time:.4f}",
+                'max_response_time': f"{max_response_time:.4f}",
+                'component_schedulable': component_schedulable,
+                'deadlines_missed': task_exec.deadlines_missed,
+                'deadlines_met': task_exec.deadlines_met
+            })
+
+    if not rows_to_write:
+        print(f"No results to write for core {core._core_id}.")
+        return
+
+    try:
+        with open(filename, 'a' if file_exists else 'w', newline='') as csvfile:
+            fieldnames = [
+                'task_name', 'component_id', 'Core_id', 'task_schedulable',
+                'avg_response_time', 'max_response_time', 'component_schedulable',
+                'deadlines_missed', 'deadlines_met'
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            if not file_exists:
+                writer.writeheader()
+            
+            for row in rows_to_write:
+                writer.writerow(row)
+        print(f"Results for core {core._core_id} {'appended to' if file_exists else 'written to'} {filename}")
+    except IOError:
+        print(f"Error: Could not write to file {filename}")
 
 # ----------------------
 # --- Main Execution ---
 # ----------------------
 
-#TODO REVIEW AT END OF OTHER CODE
 if __name__ == "__main__":
-    # Ensure input directory and files exist (create dummies if needed)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    input_dir = os.path.join(script_dir, "input")
-    os.makedirs(input_dir, exist_ok=True)
-
-    arch_file = os.path.join(input_dir, "architecture.csv")
-    budg_file = os.path.join(input_dir, "budgets.csv")
-    task_file = os.path.join(input_dir, "tasks.csv")
-
     # --- Initialize data using the library ---
     print("Initializing data from CSV files...")
     initialize_csv_data()
     print("Data initialization complete.")
-    print(f"Loaded Cores: {list(cores.keys())}")
-    print(f"Loaded Tasks: {list(tasks_registry.keys())}")
 
-    # --- Run the simulation for a specific core ---
-    target_core = "Core_1" # Specify the core ID to simulate
-    if target_core in cores:
-         if cores[target_core]._scheduler == "RM":
-             run_simulation(target_core)
-             save_results_to_csv()
-         else:
-             print(f"Core {target_core} uses {cores[target_core]._scheduler}, not RM. Skipping RM simulation.")
-    else:
-         print(f"Core {target_core} not found in configuration.")
+    #ask for simulation time and store it
+    #sim_time = int(input("Input the desired simulation time: "))
+
+    for core in cores_registry:
+        run_simulation(core, 1000)
+        save_results_to_csv()
