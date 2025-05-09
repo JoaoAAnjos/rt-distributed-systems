@@ -244,10 +244,12 @@ def initialize_ready_queue(component: Component):
 """Sets initial budget and schedules initial event for budget replenish."""
 def set_initial_remaining_budgets(component: Component):
 
-    component.current_budget = component.budget
-    component.next_replenish_time = component.period
+    if component != core.root_comp:
 
-    schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
+        component.current_budget = component.budget
+        component.next_replenish_time = component.period
+
+        schedule_event(Event(component.period, EventType.BUDGET_REPLENISH, component))
 
 
 """Reduces a component's current budget and its respective parent component's budget by a given value"""
