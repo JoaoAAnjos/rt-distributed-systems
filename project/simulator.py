@@ -153,9 +153,15 @@ def pop_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optiona
 
 """Adds an event to the event queue"""
 def schedule_event(event: Event):
-    if event.time < SIMULATION_END_TIME + EPSILON:
+    if event.time < SIMULATION_END_TIME:
         heapq.heappush(event_queue, (event.time, event))
 
+"""Peeks at the next event on the event queue"""
+def peek_next_event() -> Optional[Event]:
+    if event_queue:
+        return event_queue[0]
+    
+    return None
 
 """Removes and returns the next event from the event queue"""
 def get_next_event() -> Optional[Event]:
@@ -231,37 +237,19 @@ def run_simulation(target_core_id: str, maxSimTime: float):
         return
 
     print("\n--- Starting RM Simulation Loop ---")
-    while event_queue and CURRENT_TIME < maxSimTime + EPSILON:
-        # Get next event
-        event = get_next_event()
+    while event_queue and CURRENT_TIME < maxSimTime:
+        next_event = peek_next_event()
+        time_to_next_event = next_event.time
 
-        # --- Process time elapsed since last event ---
-        if event.time > CURRENT_TIME:
-            time_elapsed = event.time - CURRENT_TIME
-            
-            if running_task:
-                # print(f"DEBUG: Task {running_task._id} ran for {time_elapsed:.4f}. Rem WCET before: {running_task.remaining_wcet:.4f}")
-                executable_time = min(time_elapsed, running_task.remaining_wcet)
-                running_task.remaining_wcet -= executable_time
-                # print(f"DEBUG: Task {running_task._id} Rem WCET after: {running_task.remaining_wcet:.4f}")
+        if time_to_next_event > CURRENT_TIME:
+            elapsed_time = time_to_next_event - CURRENT_TIME
+            process_idle_time(elapsed_time)
 
-                # Check if the running task finished *during* this time slice
-                if running_task.remaining_wcet < EPSILON and executable_time < time_elapsed + EPSILON:
-                     # Task finished before the scheduled event
-                     finish_time = CURRENT_TIME + executable_time
-                     print(f"    Task {running_task._id} finished early at {finish_time:.4f}")
-                     CURRENT_TIME = finish_time
-                     handle_task_completion(CURRENT_TIME, running_task) # running_task becomes None here
-                     # Skip processing the original event for this task if it was its completion
-                     #TODO I have no idea what this task in the check is supposed to be. In the original code Filippo
-                     #did no variable with this name existed so I'm clueless
-                     if event.type == EventType.TASK_COMPLETION and event.task.id == task._id:
-                          continue # Skip the now redundant completion event
+        next_event = get_next_event()
+        CURRENT_TIME = next_event.time
+        handle_event(next_event)
 
-            # Update current time AFTER potentially handling early completion
-            CURRENT_TIME = event.time # Advance time to the actual event time
-
-            handle_event(event)
+        make_scheduling_decision()
 
     CURRENT_TIME = min(CURRENT_TIME, SIMULATION_END_TIME)
     print(f"\n--- Simulation End at {CURRENT_TIME:.4f} ---")
@@ -302,8 +290,38 @@ def initialize_simulation_state(target_core_id: str):
     print("Simulation state initialized.")
     return True
 
+"""Processes the passed time between current time and what should be the next event"""
+def process_idle_time(elapsed_time: float):
 
-#TODO Review this and add BUDGET_REPLENISH Event
+    if running_task is None:
+        return
+    
+    #Get component to which current running task belongs
+    component = components_registry.get(running_task.component_id)
+
+    execution_slice = min(running_task.exec_time, component.current_budget, elapsed_time)
+
+    #Update task and component based on the available execution_slice
+    running_task.exec_time -= execution_slice
+    component.current_budget -= execution_slice
+
+    #Update current time
+    CURRENT_TIME += execution_slice
+
+    if running_task.exec_time <= 0:
+        schedule_event(Event(CURRENT_TIME, EventType.TASK_COMPLETION, running_task))
+    elif component.current_budget <= 0:
+        running_task.state = TaskState.READY
+        add_to_component_ready_queue(component, running_task)
+        
+        running_task = None
+
+        make_scheduling_decision()
+
+        process_idle_time(elapsed_time - execution_slice)
+
+
+
 """Handles the current event from the event queue"""
 def handle_event(event: Event):
     if event.type == EventType.BUDGET_REPLENISH:
@@ -311,15 +329,7 @@ def handle_event(event: Event):
     elif event.type == EventType.TASK_ARRIVAL:
         handle_task_arrival(event)
     elif event.type == EventType.TASK_COMPLETION:
-        # Only handle if task didn't finish early during time update
-        if running_task and running_task._id == event.task.id:
-            if abs(running_task.remaining_wcet) < EPSILON: # Should be zero if completion is accurate
-                handle_task_completion(CURRENT_TIME, event.task)
-            else:
-                # This might happen due to floating point or if preemption occured exactly here
-                print(f"Warning: Completion event for {event.task.id} at {CURRENT_TIME:.4f}, but remaining WCET is {running_task.remaining_wcet:.4f}. Re-evaluating.")
-                make_scheduling_decision() # Re-check who should run
-            # else: Completion event might be stale due to preemption or early finish
+        handle_task_completion(event)
 
 
 """Decides which task should be running at current time, according to schedulers and priorities."""
@@ -435,83 +445,7 @@ def handle_task_completion(event: Event):
 #TODO REVIEW AT END OF SIMULATOR CODE
 """Calculates results and saves them to a CSV file."""
 def save_results_to_csv(filename="results_simulator.csv"):
-    print(f"\n--- Saving Simulation Results to {filename} ---")
-
-    task_results_data = []
-    component_schedulability_map = {} # Store schedulability per component
-
-    # --- Calculate task-level results and determine component schedulability ---
-    for task_id, task in sim_tasks.items():
-        component_id = task._component_id # Get component ID from task object
-
-        jobs_finished = task.deadlines_met + task.deadlines_missed
-        avg_response_time = sum(task.response_times) / len(task.response_times) if task.response_times else 0.0
-        max_response_time = max(task.response_times) if task.response_times else 0.0
-
-        # Task schedulable: 1 if it ran at least one job and missed none, 0 otherwise
-        task_schedulable_flag = 1 if (jobs_finished > 0 and task.deadlines_missed == 0) else 0
-        task_ran_and_failed = 1 if (jobs_finished > 0 and task.deadlines_missed > 0) else 0
-
-        # Store task results temporarily
-        task_results_data.append({
-            'task_name': task._id,
-            'component_id': component_id,
-            'task_schedulable': task_schedulable_flag,
-            'avg_response_time': avg_response_time,
-            'max_response_time': max_response_time,
-            'ran_and_failed': task_ran_and_failed # Helper flag
-        })
-
-        # Update component schedulability: If any task in the component failed, the component is not schedulable
-        if component_id not in component_schedulability_map:
-             component_schedulability_map[component_id] = True # Assume schedulable until a task fails
-
-        if task_ran_and_failed:
-            component_schedulability_map[component_id] = False # Mark component as not schedulable
-
-    # Convert boolean map to 0/1 for CSV
-    component_schedulable_numeric = {
-        comp_id: 1 if is_schedulable else 0
-        for comp_id, is_schedulable in component_schedulability_map.items()
-    }
-
-    # --- Prepare rows for CSV including component schedulability ---
-    csv_rows = []
-    for task_data in sorted(task_results_data, key=lambda x: x['task_name']): # Sort by task name for consistent output
-        component_id = task_data['component_id']
-        comp_sched_value = component_schedulable_numeric.get(component_id, 0) # Default to 0 if component somehow not in map
-
-        csv_rows.append({
-            'task_name': task_data['task_name'],
-            'component_id': component_id,
-            'task_schedulable': task_data['task_schedulable'],
-            'avg_response_time': f"{task_data['avg_response_time']:.4f}", # Format to 4 decimal places
-            'max_response_time': f"{task_data['max_response_time']:.4f}", # Format to 4 decimal places
-            'component_schedulable': comp_sched_value
-        })
-
-    # --- Write to CSV File ---
-    header = [
-        'task_name',
-        'component_id',
-        'task_schedulable',
-        'avg_response_time',
-        'max_response_time',
-        'component_schedulable'
-    ]
-
-    try:
-        with open(filename, 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=header)
-
-            writer.writeheader()
-            writer.writerows(csv_rows)
-        print(f"Successfully saved results to {filename}")
-
-    except IOError:
-        print(f"Error: Could not write to file {filename}")
-    except Exception as e:
-        print(f"An unexpected error occurred while writing CSV: {e}")
+    return
 
 
 # ----------------------
