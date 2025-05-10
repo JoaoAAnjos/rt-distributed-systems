@@ -191,7 +191,7 @@ def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
 
 
 """Calculates the available resources for a node and returns it."""
-def get_node_available_resources(node: Component) -> int:
+def get_node_available_resources(node: Component) -> float:
     def traverse(node: Component):
         nonlocal result
 
@@ -204,7 +204,7 @@ def get_node_available_resources(node: Component) -> int:
 
         traverse(node.parent)
 
-    result = sys.maxsize
+    result = sys.float_info.max
     traverse(node)
     return result
 
@@ -258,7 +258,7 @@ def set_initial_remaining_budgets(component: Component):
 
 
 """Reduces a component's current budget and its respective parent component's budget by a given value"""
-def reduce_current_hierarchy_budget(component: Component, value: int):
+def reduce_current_hierarchy_budget(component: Component, value: float):
 
     if component != core.root_comp:
         component.current_budget -= value
@@ -446,7 +446,10 @@ def handle_task_arrival(event: Event):
                 running_task = None # Make the core available
                 # Note: The task object itself still exists, but it's no longer tracked as running.
                 # We will reset its state below when the new job starts.
+            else:
+                print(f" Task detected as running is not actually running_task TASK_ID: {task.id}")
         elif task.state == TaskState.READY:
+            print(f"    Removing From ready queue TASK {task.id}.")
             # If the overrunning job was preempted and in the ready queue
             remove_from_component_ready_queue(component, task) # Remove the old instance
 
