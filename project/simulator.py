@@ -396,15 +396,12 @@ def make_scheduling_decision():
             # Start the highest priority ready task
             running_task = pop_highest_priority_ready_task(ready_queue)
             running_task.state = TaskState.RUNNING
-        else:
-            running_task = None
     else: # A task is currently running
-        if highest_ready and highest_ready != running_task:
+        if highest_ready and running_task < highest_ready:
 
             # Stop the running task and put it back in the ready queue
             preempted_task = running_task
             preempted_task.state = TaskState.READY
-            # WCET remaining was updated just before this  TODO Review this comment
             add_to_component_ready_queue(component, preempted_task)
 
             # Start the new highest priority task
