@@ -110,8 +110,9 @@ def get_highest_priority_component() -> Component:
         # If it's a leaf node
         if node.is_leaf():
             # Check if it meets the conditions to be picked
-            if ((ready_queues.get(node._component_id) or running_task.component_id == node._component_id) and 
+            if ((ready_queues.get(node._component_id) or (running_task is not None and running_task.component_id == node._component_id)) and 
                 get_node_available_resources(node) > 0.0):
+
                 result = node
             return
             
@@ -411,7 +412,7 @@ def make_scheduling_decision():
             # Stop the running task and put it back in the ready queue
             preempted_task = running_task
             preempted_task.state = TaskState.READY
-            add_to_component_ready_queue(component, preempted_task)
+            add_to_component_ready_queue(components_registry.get(preempted_task.component_id), preempted_task)
 
             # Start the new highest priority task
             running_task = pop_highest_priority_ready_task(ready_queue)
