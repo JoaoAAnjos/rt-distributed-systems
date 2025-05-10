@@ -3,6 +3,7 @@ import heapq
 import os
 import csv
 import sys
+import math
 
 from enum import Enum, auto
 from typing import List, Optional, Callable, Any
@@ -109,7 +110,7 @@ def get_highest_priority_component() -> Component:
         if node.is_leaf():
             # Check if it's better than our current best candidate
             if (ready_queues.get(node._component_id) and 
-                get_node_available_resources(node) > 0 and
+                get_node_available_resources(node) > 0.0 and
                 (result is None or getattr(node, priority_attr) < getattr(result, priority_attr))):
                 result = node
             return
@@ -136,7 +137,7 @@ def add_to_component_ready_queue(component: Component, task_exec: TaskExecution)
 
 """Removes an element from a component's ready queue."""
 def remove_from_component_ready_queue(component: Component, task_exec: TaskExecution):
-    ready_queue = ready_queues.get(component._component_id, task_exec)
+    ready_queue = ready_queues.get(component._component_id)
 
     if ready_queue:
         ready_queue.remove(task_exec)
@@ -355,9 +356,9 @@ def process_idle_time(elapsed_time: float):
     #Update current time
     CURRENT_TIME += execution_slice
 
-    if running_task.exec_time <= 0:
+    if math.isclose(running_task.exec_time, 0.0) or running_task.exec_time < 0.0:
         schedule_event(Event(CURRENT_TIME, EventType.TASK_COMPLETION, running_task))
-    elif available_budget - execution_slice <= 0:
+    elif math.isclose(available_budget - execution_slice, 0.0) or available_budget - execution_slice < 0.0:
         running_task.state = TaskState.READY
         add_to_component_ready_queue(component, running_task)
         

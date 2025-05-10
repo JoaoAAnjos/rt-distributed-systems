@@ -32,7 +32,7 @@ class Core:
 #   Component
 #   ------------------------------------------------------------------------------------
 class Component:
-    def __init__(self, component_id: str, scheduler: str, budget: int, period: float, core_id: str):
+    def __init__(self, component_id: str, scheduler: str, budget: float, period: float, core_id: str):
         try:
             #   Component ID specification
             self._component_id = component_id
@@ -45,7 +45,7 @@ class Component:
             #   * RM (Rate-Monotonic)
             self._scheduler = Scheduler[scheduler]
 
-            self.budget = budget
+            self.budget = float(budget)
 
             self.period = float(period)
 
