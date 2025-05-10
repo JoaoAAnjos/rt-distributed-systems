@@ -53,6 +53,7 @@ class TaskExecution:
         self.deadlines_missed = 0
 
     def __lt__(self, other):
+        #ATTENTION: You should only compare two tasks that belong to the same component (i.e, that have the same scheduler) or else this logic is wrong
         component = components_registry.get(self.component_id)
 
         if component._scheduler == Scheduler.RM:
@@ -108,10 +109,9 @@ def get_highest_priority_component() -> Component:
         
         # If it's a leaf node
         if node.is_leaf():
-            # Check if it's better than our current best candidate
-            if (ready_queues.get(node._component_id) and 
-                get_node_available_resources(node) > 0.0 and
-                (result is None or getattr(node, priority_attr) < getattr(result, priority_attr))):
+            # Check if it meets the conditions to be picked
+            if ((ready_queues.get(node._component_id) or running_task.component_id == node._component_id) and 
+                get_node_available_resources(node) > 0.0):
                 result = node
             return
             
@@ -120,7 +120,7 @@ def get_highest_priority_component() -> Component:
         traverse(next_node)
         
         # If we didn't find a valid leaf in that branch, try other children
-        if result is None or getattr(node, priority_attr) < getattr(result, priority_attr):
+        if result is None:
             for child in sorted(node.children, key=lambda x: getattr(x, priority_attr)):
                 if child != next_node:  # Already checked this one
                     traverse(child)
@@ -341,6 +341,12 @@ def process_idle_time(elapsed_time: float):
     if running_task is None:
         return
     
+    #Temporary variable so we can change current time for processing idle without changing the global variable. This is done because CURRENT_TIME is updated
+    #on the main simulation loop and should not be updated here. The reason is because new events might pop up in this idle time processing, and the CURRENT_TIME
+    #after being changed here would be incorrect. Although it would be updated to the correct value when the event is popped out of the queue back on the main loop, 
+    # we should avoid any unecessary changes to the variable that might lead to bugs and incorrect results.
+    current_time = CURRENT_TIME
+
     #Get component to which current running task belongs
     component = components_registry.get(running_task.component_id)
 
@@ -354,10 +360,12 @@ def process_idle_time(elapsed_time: float):
     reduce_current_hierarchy_budget(component, execution_slice)
 
     #Update current time
-    CURRENT_TIME += execution_slice
+    current_time += execution_slice
 
     if math.isclose(running_task.exec_time, 0.0) or running_task.exec_time < 0.0:
-        schedule_event(Event(CURRENT_TIME, EventType.TASK_COMPLETION, running_task))
+
+        schedule_event(Event(current_time, EventType.TASK_COMPLETION, running_task))
+
     elif math.isclose(available_budget - execution_slice, 0.0) or available_budget - execution_slice < 0.0:
         running_task.state = TaskState.READY
         add_to_component_ready_queue(component, running_task)
@@ -392,13 +400,13 @@ def make_scheduling_decision():
 
         highest_ready = peek_highest_priority_ready_task(ready_queue)
 
-    if running_task is None:
-        if highest_ready:
-            # Start the highest priority ready task
-            running_task = pop_highest_priority_ready_task(ready_queue)
-            running_task.state = TaskState.RUNNING
+    if running_task is None and highest_ready:
+        # Start the highest priority ready task
+        running_task = pop_highest_priority_ready_task(ready_queue)
+        running_task.state = TaskState.RUNNING
     else: # A task is currently running
-        if highest_ready and running_task < highest_ready:
+        if (highest_ready and 
+            (component._component_id != running_task.component_id or (component._component_id == running_task.component_id and highest_ready < running_task))):
 
             # Stop the running task and put it back in the ready queue
             preempted_task = running_task
