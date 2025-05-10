@@ -10,8 +10,9 @@ from project_lib import (Core, Component, Task, initialize_csv_data, cores_regis
                          tasks_registry, components_registry, CURRENT_TIME)
 
 # --- Simulation Constants ---
-SIMULATION_END_TIME = 1000.0  
+SIMULATION_END_TIME = 0.0  
 EPSILON = 1e-9              # For floating point comparisons
+RESULTS_CSV_FILENAME = "results_simulator.csv"
 
 #   --------------------
 #   Enums
@@ -41,7 +42,7 @@ class TaskExecution:
         self.component_id = task._component_id
         self.schedulable = True
         
-        self.state = TaskState.READY
+        self.state = TaskState.IDLE
         self.arrival_time = CURRENT_TIME
         self.exec_time = self.wcet
         self.exec_count = 0
@@ -135,14 +136,19 @@ def add_to_component_ready_queue(component: Component, task_exec: TaskExecution)
 
 """Removes an element from a component's ready queue."""
 def remove_from_component_ready_queue(component: Component, task_exec: TaskExecution):
-    ready_queues.get(component._component_id, task_exec)
+    ready_queue = ready_queues.get(component._component_id, task_exec)
+
+    if ready_queue:
+        ready_queue.remove(task_exec)
+        #This is necessary because removing an arbitrary task from the ready_queue breaks the heapify and needs to be redone.
+        heapq.heapify(ready_queue)
+
 
 
 """Gets the highest priority task from the ready queue without removing it."""
 def peek_highest_priority_ready_task(ready_queue: List[TaskExecution]) -> Optional[TaskExecution]:
     if ready_queue:
-        task = ready_queue[0] # Peek at the smallest element (highest priority)
-        return task
+        return ready_queue[0] # Peek at the smallest element (highest priority)
     return None
 
 
@@ -265,7 +271,9 @@ def reduce_current_hierarchy_budget(component: Component, value: int):
 
 """Executes the RM simulation loop for the specified core."""
 def run_simulation(target_core_id: str, maxSimTime: float):
-    global CURRENT_TIME, running_task
+    global CURRENT_TIME, SIMULATION_END_TIME, running_task
+
+    SIMULATION_END_TIME = maxSimTime
 
     if not initialize_simulation_state(target_core_id):
         return
@@ -323,6 +331,7 @@ def initialize_simulation_state(target_core_id: str):
 
     print("Simulation state initialized.")
     return True
+
 
 """Processes the passed time between current time and what should be the next event."""
 def process_idle_time(elapsed_time: float):
@@ -435,8 +444,8 @@ def handle_task_arrival(event: Event):
 
         if task.state == TaskState.RUNNING:
             # If the overrunning job was the one currently running
-            if running_task and running_task._id == task.id:
-                print(f"    Aborting currently RUNNING job of Task {task._id}.")
+            if running_task and running_task.id == task.id:
+                print(f"    Aborting currently RUNNING job of Task {task.id}.")
                 running_task = None # Make the core available
                 # Note: The task object itself still exists, but it's no longer tracked as running.
                 # We will reset its state below when the new job starts.
@@ -481,8 +490,15 @@ def handle_task_completion(event: Event):
 #   Simulation Results Output
 #   ------------------------------------------------------------------------------------
 
+"""Cleans the results CSV file for a new run."""
+def delete_results_csv_file(filename=RESULTS_CSV_FILENAME):
+    file_exists = os.path.isfile(filename)
+
+    if file_exists:
+        os.remove(filename)
+
 """Calculates results and saves them to a CSV file."""
-def save_results_to_csv(filename="results_simulator.csv"):
+def save_results_to_csv(filename=RESULTS_CSV_FILENAME):
     # Determine if the file exists to decide whether to write a header
     file_exists = os.path.isfile(filename)
 
@@ -583,9 +599,12 @@ if __name__ == "__main__":
     initialize_csv_data()
     print("Data initialization complete.")
 
+    #delete the results csv file from previous run
+    delete_results_csv_file()
+
     #ask for simulation time and store it
     #sim_time = int(input("Input the desired simulation time: "))
 
     for core in cores_registry:
-        run_simulation(core, 1000)
+        run_simulation(core, 10000.0)
         save_results_to_csv()
