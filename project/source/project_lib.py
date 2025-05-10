@@ -1,7 +1,15 @@
 import pandas as pd
 import os
 
-from typing import Dict,List
+from typing import Dict, List
+from enum import Enum, auto
+
+#   ------------------------------------------------------------------------------------
+#   Enums 
+#   ------------------------------------------------------------------------------------
+class Scheduler(Enum):
+    EDF = auto()
+    RM = auto()
 
 #   ------------------------------------------------------------------------------------
 #   Core class 
@@ -9,19 +17,14 @@ from typing import Dict,List
 class Core:
     def __init__(self, identifier: str, speed_factor: float, scheduler: str):
         try:
-            assert isinstance(identifier,str)
             self._core_id = identifier
-
-            assert isinstance(speed_factor,float) and speed_factor > 0.0
             self._speed_factor = speed_factor
-
-            assert isinstance(scheduler, str)
-            self._scheduler = scheduler
+            self._scheduler = Scheduler[scheduler]
 
             #   Create root component (0 interface)
-            self.root_comp = Component(False, self._core_id, self._scheduler, 0, 0, self._core_id)
+            self.root_comp = Component(False, self._core_id, scheduler, 0, 0, self._core_id)
 
-            cores[self._core_id] = self
+            cores_registry[self._core_id] = self
 
         except AssertionError:
             print("Error: Given parameters (Core) \
@@ -39,14 +42,14 @@ class Core:
     def simple_scheduler(self):
         utilization = 0.0
         
-        for component in self.root_comp._sub_components:
+        for component in self.root_comp.children:
             utilization += component._budget / component._period
         
         #   Check if the utilization is less than the limit for scheduler
-        if self._scheduler == "RM":
-            n = len(self.root_comp._sub_components)
+        if self._scheduler == Scheduler.RM:
+            n = len(self.root_comp.children)
             return utilization <= n*(2**(1/n) - 1)
-        elif self._scheduler == "EDF":
+        elif self._scheduler == Scheduler.EDF:
             return utilization <= 1.0
 
             
@@ -56,20 +59,18 @@ class Core:
 class Component:
     def __init__(self, terminal: bool, component_id: str, scheduler: str, budget: int, \
                  period: int, core_id: str, priority: int = -1):
+
         try:
             #   Component ID specification
-            assert type(component_id) == str
             self._component_id = component_id
 
             #   Core ID specification
-            assert type(core_id) == str
             self._core_id = core_id
 
             #   Scheduler definition (string), can be:
             #   * EDF (Earliest Deadline First)
             #   * RM (Rate-Monotonic)
-            assert type(scheduler) == str
-            self._scheduler = scheduler
+            self._scheduler = Scheduler[scheduler]
 
             #   Budget definition (integer)
             assert type(budget) == int and budget >= 0
@@ -96,10 +97,13 @@ class Component:
             #   Obtain global provided resource from supply bound function
             self._provided_supply = 0.0
 
-            components[self._component_id] = self
+            #   Initialize component's parent
+            self._parent = None
+
+            components_registry[self._component_id] = self
 
             #   Initialize subcomponents list
-            self._sub_components = []
+            self.children = []
 
             #   Define component's priority (needed for RM algorithm)
             self._priority = priority
@@ -109,17 +113,12 @@ class Component:
                   didn't meet the requirements for instance.")
         pass
 
-
     """
         Add a child to the component's children (Task or Component)
     """
-    def add_child(self,child):
-        if self._is_terminal:
-            assert isinstance(child,Task), "If terminal, child must be Task"
-        else:
-            assert isinstance(child,Component), "If terminal, child must be Component"
-
-        self._sub_components.append(child)
+    def add_child(self, child):
+        self.children.append(child)
+        child._parent = self
 
             
 #   ------------------------------------------------------------------------------------
@@ -132,7 +131,6 @@ class Task:
                     type(wcet) == float and \
                     type(period) == int and \
                     type(component_id) == str
-
             self._id = id
             self._wcet = wcet
             self._period = period
@@ -145,36 +143,16 @@ class Task:
             #   Initially define task as schedulable
             self._schedulable = True
 
+            #   Initialize task's parent
+            self._parent = None
+
             #   Initialize it as -1 since this will be calculated by the simulator
             self._wcrt = -1
-
-            tasks[self._id] = self
 
         except AssertionError:
             print("Error: Given parameters (Task) \
                   didn't meet the requirements for instance.")
-
-#   ------------------------------------------------------------------------------------
-#   Job 
-#   ------------------------------------------------------------------------------------
-class Job:
-    def __init__(self, task_id, deadline, release_time):
-        try:
-            assert  type(task_id) == int and \
-                    type(deadline) == int and \
-                    type(release_time) == int
             
-            self._task_id = task_id
-            self._deadline = deadline
-            self._release_time = release_time
-            self._exec_time = 0##################
-
-            jobs.append(self)
-
-        except AssertionError:
-            print("Error: Given parameters (Job) \
-                  didn't meet the requirements for instance.")
-
 
 #   ------------------------------------------------------------------------------------
 #   Resource Paradigm employed in HSS (only BDR model is valid)
@@ -211,14 +189,15 @@ class Resource_paradigm:
 #   ------------------------------------------------------------------------------------
 
 # Global variable for cores
-cores: Dict[str, Core] = {}
+cores_registry: Dict[str, Core] = {}
 #Global variable for components
-components: Dict[str, Component] = {}
+components_registry: Dict[str, Component] = {}
 # Global variable for tasks
-tasks: Dict[str, Task] = {}
-# Global variable for active jobs
-jobs: List[Job] = []
+tasks_registry: Dict[str, Task] = {}
+# Registry of Tasks associated with Component for terminal Components
+component_task_registry: Dict[str, List[Task]] = {}
 
+#Global time value for simulator usage
 CURRENT_TIME = 0.0
 
 #   ------------------------------------------------------------------------------------
@@ -237,6 +216,8 @@ def initialize_cores(df: pd.DataFrame):
             row["scheduler"]
         )
 
+        cores_registry[core._core_id] = core
+
 """
 Initializes components and adds them to hierarchy structure
 """
@@ -253,8 +234,10 @@ def initialize_components(df: pd.DataFrame):
             row["priority"]
         )
 
-        core = cores.get(row["core_id"])
+        core = cores_registry.get(component._core_id)
         core.root_comp.add_child(component)
+
+        components_registry[component._component_id] = component
 
 """
 Initializes tasks and adds them to hierarchy structure
@@ -262,11 +245,11 @@ Initializes tasks and adds them to hierarchy structure
 def initialize_tasks(df: pd.DataFrame):
 
     for index, row in df.iterrows():
-        component = components.get(row["component_id"])
-        core = cores.get(component._core_id)
+        component = components_registry.get(row["component_id"])
+        core = cores_registry.get(component._core_id)
         wcet = float(row["wcet"]/core._speed_factor)
         
-        if component._scheduler == "RM":
+        if component._scheduler == Scheduler.RM:
             task = Task(
                 row["task_name"],
                 wcet,
@@ -283,26 +266,16 @@ def initialize_tasks(df: pd.DataFrame):
             )
 
         component.add_child(task)
+        tasks_registry[task._id] = task
 
-"""
-Initialize jobs for each task
-"""
-def initialize_jobs():
-
-    for task in tasks.values():
-        job = Job(
-            task._id,
-            task._period,
-            CURRENT_TIME
-        )
-
-        jobs.append(job)
+        component_task_registry.setdefault(task._component_id, []).append(task)
+        
 
 """
 Only works under the assumption that both the input folder is named 'input' and the files inside
 will be named architecture.csv, budgets.csv and tasks.csv, following the nomenclature on the test
-cases given by the teacher. When function has finished executing, all objects are created, added to
-global resources and organized in an hierarchical structure.
+cases given by the teacher. When function has finished executing, all objects from csv data are created, 
+added to global resources and organized in an hierarchical structure.
 """
 def initialize_data():
 
@@ -310,7 +283,7 @@ def initialize_data():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Construct the full path to the file
-    input_folder = os.path.join(script_dir, "input")
+    input_folder = os.path.join(script_dir, "../input")
 
     initialize_cores(pd.read_csv(os.path.join(input_folder, "architecture.csv")))
 

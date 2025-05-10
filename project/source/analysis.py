@@ -1,5 +1,5 @@
 import math
-from project_lib import *
+from source.project_lib import *
 
 
 """
@@ -54,7 +54,7 @@ def dbf_task_RM(sorted_tasks, task : Task, t_interval : float):
 def dbf_component_RM(component : Component):
     schedulable = True
     
-    sorted_tasks = sorted(component._sub_components, key=lambda _task: _task._priority, reverse=False)
+    sorted_tasks = sorted(component.children, key=lambda _task: _task._priority, reverse=False)
     schedulable_tasks = [False] * len(sorted_tasks)
 
     for i, task in enumerate(sorted_tasks):
@@ -107,7 +107,7 @@ def dbf_component_EDF(component : Component):
         return float(hyperperiod)
     
     
-    task_set = component._sub_components
+    task_set = component.children
     hyperperiod = calculate_hyperperiod(task_set)
     
     t_interval = 0.0
@@ -122,7 +122,7 @@ def dbf_component_EDF(component : Component):
 
         t_interval += 1
         
-    schedulable_tasks = [schedulable] * len(component._sub_components)
+    schedulable_tasks = [schedulable] * len(component.children)
     return schedulable, schedulable_tasks
 
 
@@ -133,12 +133,12 @@ def dbf_component_EDF(component : Component):
 #   ------------------------------------------------------------------------------------------------------
 #   ------------------------------------------------------------------------------------------------------
 
-
+"""
 #   This function checks if a task needs to be activated. If a task has met its period, a new
 #   job is created for that task, and added to the active jobs list.
 def activate_task_jobs():
 
-    for task in tasks.values():
+    for task in tasks_registry.values():
         #   Cast to int to ensure that when working with float time_unit it still catches the period activation
         #   ATTENTION: As of now, this condition only works because of the assumption that time_unit will always be 1
         #   in the context of the exercise
@@ -159,13 +159,13 @@ def highest_priority_ready_job(component_root : Component) -> Job:
     result = None
 
     if component_root._is_terminal:
-        for task in component_root._sub_components:
+        for task in component_root.children:
             if jobs.get(task._id) != None:
                 result = jobs.get(task._id)
     else:
         component_hp = None
 
-        for component in component_root._sub_components:
+        for component in component_root.children:
             #   Check if the component is still being computed
             if component._required_supply > 0.0:
                 component_hp = component
@@ -182,7 +182,7 @@ def highest_priority_ready_job(component_root : Component) -> Job:
 #   type specifications
 def schedule_components(component_root : Component):
     if not component_root._is_terminal:
-        for component in component_root._sub_components:
+        for component in component_root.children:
             schedule_components(component)
 
     #   Rearrange children by scheduler
@@ -199,7 +199,7 @@ def schedule_components(component_root : Component):
 #   and updates the job's execution time for simulation
 def handle_job(current_job: Job, time_unit: float):
     def update_component(job):
-        task = tasks.get(job._task_id)
+        task = tasks_registry.get(job._task_id)
         component = components.get(task._component_id)
 
         #   Every time a job is completed, the component's supply
@@ -220,6 +220,6 @@ def handle_job(current_job: Job, time_unit: float):
             jobs[current_job._task_id]._exec_time -= time_unit
 
         update_component(current_job)
-
+"""
 
 
