@@ -3,6 +3,10 @@ from source.project_lib import cores_registry, initialize_csv_data, initialize_a
 import os
 
 
+#   Create output folder for results
+if not os.path.exists("output"):
+    os.makedirs("output")
+
 ANALYSIS_OUTPUT = "output/results_analysis.csv"
 
 
