@@ -1,5 +1,5 @@
 from source.analysis import dbf_component_EDF, dbf_component_RM
-from source.project_lib import cores_registry, initialize_data, Scheduler
+from source.project_lib import cores_registry, initialize_csv_data, initialize_analysis_data, Scheduler
 import os
 
 
@@ -21,7 +21,8 @@ def analyse_system():
     unschedulable_components = []
     schedulable_components = []
     
-    initialize_data()
+    initialize_csv_data()
+    initialize_analysis_data
 
     #   Clear and initialize CSV results file
     with open(ANALYSIS_OUTPUT, "w") as f:
