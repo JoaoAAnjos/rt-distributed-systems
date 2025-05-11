@@ -3,8 +3,7 @@ from source.project_lib import cores_registry, initialize_data, Scheduler
 import os
 
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-output_folder = os.path.join(script_dir, "output")
+ANALYSIS_OUTPUT = "output/results_analysis.csv"
 
 
 """
@@ -25,7 +24,7 @@ def analyse_system():
     initialize_data()
 
     #   Clear and initialize CSV results file
-    with open(os.path.join(output_folder, "results_analysis.csv"), "w") as f:
+    with open(ANALYSIS_OUTPUT, "w") as f:
         f.write("Task_ID,WCET,Priority,Task_Schedulable,Component_ID,Component_Schedulable\n")
         f.write("=========================================================================\n")
 
@@ -76,7 +75,7 @@ def analyse_system():
         -   None
 """
 def write_results(sorted_tasks,schedulable_tasks,component,schedulable):
-    with open(os.path.join(output_folder, "results_analysis.csv"), "a") as f:
+    with open(ANALYSIS_OUTPUT, "a") as f:
         for i, task in enumerate(sorted_tasks):
             f.write(f"{task._id},{task._wcet:.4f},{task._priority},{schedulable_tasks[i]},"
                     f"{component._component_id},{schedulable}\n")

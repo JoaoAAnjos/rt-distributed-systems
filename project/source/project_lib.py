@@ -22,7 +22,7 @@ class Core:
             self._scheduler = Scheduler[scheduler]
 
             #   Create root component (0 interface)
-            self.root_comp = Component(False, self._core_id, scheduler, 0, 0, self._core_id)
+            self.root_comp = Component(False, self._core_id, scheduler, 0.0, 0.0, self._core_id)
 
             cores_registry[self._core_id] = self
 
@@ -57,8 +57,8 @@ class Core:
 #   Component
 #   ------------------------------------------------------------------------------------
 class Component:
-    def __init__(self, terminal: bool, component_id: str, scheduler: str, budget: int, \
-                 period: int, core_id: str, priority: int = -1):
+    def __init__(self, terminal: bool, component_id: str, scheduler: str, budget: float, \
+                 period: float, core_id: str, priority: int = -1):
 
         try:
             #   Component ID specification
@@ -73,11 +73,11 @@ class Component:
             self._scheduler = Scheduler[scheduler]
 
             #   Budget definition (integer)
-            assert type(budget) == int and budget >= 0
+            assert type(budget) == float and budget >= 0
             self._budget = budget
 
             #   Period definition (integer)
-            assert type(period) == int and period >= 0
+            assert type(period) == float and period >= 0
             self._period = period
 
             #   Boolean variable which indicates the component is terminal
@@ -228,8 +228,8 @@ def initialize_components(df: pd.DataFrame):
             True,
             row["component_id"],
             row["scheduler"],
-            row["budget"],
-            row["period"],
+            float(row["budget"]),
+            float(row["period"]),
             row["core_id"],
             row["priority"]
         )
