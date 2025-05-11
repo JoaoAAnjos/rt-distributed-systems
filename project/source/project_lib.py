@@ -22,9 +22,7 @@ class Core:
             self._scheduler = Scheduler[scheduler]
 
             #   Create root component (0 interface)
-            self.root_comp = Component(False, self._core_id, scheduler, 0.0, 0.0, self._core_id)
-
-            cores_registry[self._core_id] = self
+            self.root_comp = Component(self._core_id, scheduler, 0.0, 0.0, self._core_id)
 
         except AssertionError:
             print("Error: Given parameters (Core) \
@@ -57,7 +55,7 @@ class Core:
 #   Component
 #   ------------------------------------------------------------------------------------
 class Component:
-    def __init__(self, terminal: bool, component_id: str, scheduler: str, budget: float, \
+    def __init__(self, component_id: str, scheduler: str, budget: float, 
                  period: float, core_id: str, priority: int = -1):
 
         try:
@@ -72,18 +70,13 @@ class Component:
             #   * RM (Rate-Monotonic)
             self._scheduler = Scheduler[scheduler]
 
-            #   Budget definition (integer)
+            #   Budget definition (float)
             assert type(budget) == float and budget >= 0
             self._budget = budget
 
-            #   Period definition (integer)
+            #   Period definition (float)
             assert type(period) == float and period >= 0
             self._period = period
-
-            #   Boolean variable which indicates the component is terminal
-            #   (considered then a set of tasks) or not
-            assert type(terminal) == bool
-            self._is_terminal = terminal
 
             #   Interface definition (Half-half algorithm)
             self._interface = None
@@ -99,8 +92,6 @@ class Component:
 
             #   Initialize component's parent
             self._parent = None
-
-            components_registry[self._component_id] = self
 
             #   Initialize subcomponents list
             self.children = []
@@ -119,6 +110,12 @@ class Component:
     def add_child(self, child):
         self.children.append(child)
         child._parent = self
+
+    """
+    Returns whether a component is a leaf or not (i.e. is terminal). Only works for simulator.
+    """
+    def is_leaf(self):
+        return not self.children
 
             
 #   ------------------------------------------------------------------------------------
@@ -142,9 +139,6 @@ class Task:
 
             #   Initially define task as schedulable
             self._schedulable = True
-
-            #   Initialize task's parent
-            self._parent = None
 
             #   Initialize it as -1 since this will be calculated by the simulator
             self._wcrt = -1
@@ -225,7 +219,6 @@ def initialize_components(df: pd.DataFrame):
 
     for index, row in df.iterrows():
         component = Component(
-            True,
             row["component_id"],
             row["scheduler"],
             float(row["budget"]),
@@ -265,7 +258,6 @@ def initialize_tasks(df: pd.DataFrame):
                 row["component_id"]
             )
 
-        component.add_child(task)
         tasks_registry[task._id] = task
 
         component_task_registry.setdefault(task._component_id, []).append(task)
@@ -277,7 +269,7 @@ will be named architecture.csv, budgets.csv and tasks.csv, following the nomencl
 cases given by the teacher. When function has finished executing, all objects from csv data are created, 
 added to global resources and organized in an hierarchical structure.
 """
-def initialize_data():
+def initialize_csv_data():
 
     # Get the directory where the Python script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -290,3 +282,15 @@ def initialize_data():
     initialize_components(pd.read_csv(os.path.join(input_folder, "budgets.csv")))
 
     initialize_tasks(pd.read_csv(os.path.join(input_folder, "tasks.csv")))
+
+"""
+Adds the Task as children to the components. Since the Simulator uses different classes from the Task to build its tree
+this needs to be separate.
+"""
+def initialize_analysis_data():
+    initialize_csv_data()
+
+    for task in tasks_registry.values():
+        component = components_registry.get(task._component_id)
+
+        component.add_child(task)
