@@ -5,7 +5,7 @@ import math
 
 from enum import Enum, auto
 from typing import List, Optional, Callable, Any
-from source.project_lib import (Core, Component, Task, initialize_data, cores_registry, 
+from source.project_lib import (Core, Component, Task, cores_registry, 
                          tasks_registry, components_registry, CURRENT_TIME)
 
 # --- Simulation Constants ---
@@ -34,7 +34,7 @@ class TaskExecution:
 
     def __init__(self, task: Task):
         self.id = task._id
-        self.wcet = task._wcet / core._speed_factor
+        self.wcet = task._wcet
         self.absolute_deadline = CURRENT_TIME + task._deadline
         self.period = task._period
         self.component_id = task._component_id
@@ -108,10 +108,10 @@ def get_highest_priority_component() -> Component:
             return
         
         #   If it's a leaf node
-        if all(isinstance(child, Task) for child in node.children):
+        if node.is_leaf():
             #   Check if it meets the conditions to be picked
             if ((ready_queues.get(node._component_id) or \
-            (running_task is not None and running_task.component_id == node._component_id)) and 
+            (running_task is not None and running_task.component_id == node._component_id)) and \
             get_node_available_resources(node) > 0.0):
 
                 result = node
@@ -208,8 +208,7 @@ def apply_action_on_tree(node: Component, action: Callable[[Component], None]):
     action(node)
     
     for child in node.children:
-        if isinstance(child, Component):
-            apply_action_on_tree(child, action)
+        apply_action_on_tree(child, action)
 
 
 """
@@ -251,9 +250,10 @@ def filter_tree_node(node: Component, action: Callable[[Component], bool]) -> Co
 """
 def initialize_taskexecs_registry(component: Component):
     #   Check if the component has tasks as children
-    component_tasks = [child for child in component.children if isinstance(child, Task)]
+    if component.is_leaf():
 
-    if component_tasks:
+        component_tasks = component_task_registry.get(component._component_id)
+
         component_taskexecs = []
 
         for task in component_tasks:
@@ -271,7 +271,7 @@ def initialize_taskexecs_registry(component: Component):
 """
 def initialize_ready_queue(component: Component):
     #   Check if the component has tasks as children
-    if any(isinstance(child, Task) for child in component.children):
+    if component.is_leaf():
         ready_queue = []
         heapq.heapify(ready_queue)
 
@@ -455,7 +455,7 @@ def make_scheduling_decision():
         running_task = pop_highest_priority_ready_task(ready_queue)
         running_task.state = TaskState.RUNNING
     else: #     A task is currently running
-        if (highest_ready and 
+        if (highest_ready and \
         (component._component_id != running_task.component_id or \
         (component._component_id == running_task.component_id and highest_ready < running_task))):
 

@@ -1,4 +1,4 @@
-from source.simulator import initialize_data, run_simulation
+from source.simulator import initialize_csv_data, run_simulation
 from source.simulator import component_task_exec_registry, components_registry
 from source.simulator import tasks_registry, cores_registry
 import os
@@ -133,7 +133,7 @@ def save_results_to_csv(filename=RESULTS_CSV_FILENAME):
 if __name__ == "__main__":
     # --- Initialize data using the library ---
     print("Initializing data from CSV files...")
-    initialize_data()
+    initialize_csv_data()
     print("Data initialization complete.")
 
     #delete the results csv file from previous run
