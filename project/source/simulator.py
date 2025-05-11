@@ -127,6 +127,8 @@ def get_highest_priority_component() -> Component:
                 #   Already checked this one
                 if child != next_node:
                     traverse(child)
+                    if result is not None:
+                        break
         
     result = None
     traverse(core.root_comp)
@@ -323,9 +325,36 @@ def run_simulation(target_core_id: str, maxSimTime: float):
 
         if time_to_next_event > CURRENT_TIME:
             elapsed_time = time_to_next_event - CURRENT_TIME
-            process_idle_time(elapsed_time)
+
+            while not math.isclose(elapsed_time, 0.0):
+
+                print(f"    InnerLoop: CT={CURRENT_TIME:.4f}, elapsed_time={elapsed_time:.4f}, running_task={running_task.id if running_task else 'None'}")
+                if running_task:
+                    comp_of_running = components_registry.get(running_task.component_id)
+                    print(f"               RT exec_time={running_task.exec_time:.4f}, Comp {comp_of_running._component_id} budget_path={get_node_available_resources(comp_of_running):.4f}, leaf_budget={comp_of_running.current_budget:.4f}")
+                if running_task is None:
+                    # If no task is running, it means there is no budget. Since the only event that can be
+                    # triggered by process_idle_time is a task completion, which should not affect the budget,
+                    # we can confidently move to the next event, as we consider the remaining elapsed_time
+                    # as idle time
+                    CURRENT_TIME += elapsed_time
+                    break
+                elif event_queue and time_to_next_event != peek_next_event().time:
+                    # If a task completion event was scheduled, we should break this processing and let the event
+                    # run.
+                    break
+                
+                #Represents the exact time that was processed
+                execution_slice = process_idle_time(elapsed_time)
+                print(f"    InnerLoop: process_idle_time returned slice={execution_slice:.4f}")
+
+                CURRENT_TIME += execution_slice
+                elapsed_time -= execution_slice
+
+                make_scheduling_decision()
 
         next_event = get_next_event()
+        #ensure exact sync of current_time
         CURRENT_TIME = next_event.time
         handle_event(next_event)
 
@@ -374,13 +403,19 @@ def initialize_simulation_state(target_core_id: str):
 
 
 """
-    Processes the passed time between current time and what should be the next event.
+    Processes the passed time between current time and what should be the next event. Returns
+    the actual time slice that could be executed safely.
 """
-def process_idle_time(elapsed_time: float):
+def process_idle_time(max_slice_duration: float) -> float:
     global CURRENT_TIME, running_task
 
     if running_task is None:
-        return
+        return 0.0
+    
+    print(f"    PIDT Enter: CT={CURRENT_TIME:.4f}, max_slice_duration={max_slice_duration:.4f}, running_task={running_task.id if running_task else 'None'}")
+    if running_task:
+        comp_of_running_pidt = components_registry.get(running_task.component_id)
+        print(f"                  RT exec_time={running_task.exec_time:.4f}, Comp {comp_of_running_pidt._component_id} budget_path={get_node_available_resources(comp_of_running_pidt):.4f}, leaf_budget={comp_of_running_pidt.current_budget:.4f}")
     
     #   Temporary variable so we can change current time for processing idle without changing 
     #   the global variable. This is done because CURRENT_TIME is updated on the main simulation
@@ -398,7 +433,7 @@ def process_idle_time(elapsed_time: float):
 
     #   Get the lowest budget in the running component hierarchy. This tells us how much available
     #   resources we have to run the task
-    execution_slice = min(running_task.exec_time, available_budget, elapsed_time)
+    execution_slice = min(running_task.exec_time, available_budget, max_slice_duration)
 
     #   Update task and component based on the available execution_slice
     running_task.exec_time -= execution_slice
@@ -411,6 +446,8 @@ def process_idle_time(elapsed_time: float):
 
         schedule_event(Event(current_time, EventType.TASK_COMPLETION, running_task))
 
+        running_task = None
+
     elif math.isclose(available_budget - execution_slice, 0.0) or \
     available_budget - execution_slice < 0.0:
         running_task.state = TaskState.READY
@@ -418,9 +455,13 @@ def process_idle_time(elapsed_time: float):
         
         running_task = None
 
-        make_scheduling_decision()
+    # At the end of process_idle_time, before return:
+    print(f"    PIDT Exit: returning slice={execution_slice:.4f}. running_task is now {running_task.id if running_task else 'None'}")
+    if running_task: # If it didn't become None
+        comp_of_running_pidt_exit = components_registry.get(running_task.component_id)
+        print(f"                 RT exec_time={running_task.exec_time:.4f}, Comp {comp_of_running_pidt_exit._component_id} budget_path={get_node_available_resources(comp_of_running_pidt_exit):.4f}, leaf_budget={comp_of_running_pidt_exit.current_budget:.4f}")
 
-        process_idle_time(elapsed_time - execution_slice)
+    return execution_slice
 
 
 
@@ -462,7 +503,7 @@ def make_scheduling_decision():
             #   Stop the running task and put it back in the ready queue
             preempted_task = running_task
             preempted_task.state = TaskState.READY
-            add_to_component_ready_queue(components_registry.get(preempted_task.component_id), \
+            add_to_component_ready_queue(components_registry.get(preempted_task.component_id),
                                          preempted_task)
 
             #   Start the new highest priority task

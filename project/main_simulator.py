@@ -143,5 +143,5 @@ if __name__ == "__main__":
     #sim_time = int(input("Input the desired simulation time: "))
 
     for core in cores_registry:
-        run_simulation(core, 10000.0)
+        run_simulation(core, 100000.0)
         save_results_to_csv()
