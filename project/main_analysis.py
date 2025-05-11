@@ -22,7 +22,7 @@ def analyse_system():
     schedulable_components = []
     
     initialize_csv_data()
-    initialize_analysis_data
+    initialize_analysis_data()
 
     #   Clear and initialize CSV results file
     with open(ANALYSIS_OUTPUT, "w") as f:
