@@ -3,6 +3,7 @@ from source.simulator import component_task_exec_registry, components_registry
 from source.simulator import tasks_registry, cores_registry
 import os
 import csv
+import sys
 
 
 RESULTS_CSV_FILENAME = "output/results_simulator.csv"
@@ -131,6 +132,17 @@ def save_results_to_csv(filename=RESULTS_CSV_FILENAME):
 
 
 if __name__ == "__main__":
+
+    if len(sys.argv) < 2:
+        print("Usage: python main_simulator.py <simulation_time>")
+        sys.exit(1)
+    
+    try:
+        sim_time = float(sys.argv[1])
+    except ValueError:
+        print("Error: Simulation time must be a number.")
+        sys.exit(1)
+
     # --- Initialize data using the library ---
     print("Initializing data from CSV files...")
     initialize_csv_data()
@@ -139,9 +151,6 @@ if __name__ == "__main__":
     #delete the results csv file from previous run
     delete_results_csv_file()
 
-    #ask for simulation time and store it
-    #sim_time = int(input("Input the desired simulation time: "))
-
     for core in cores_registry:
-        run_simulation(core, 100000.0)
+        run_simulation(core, sim_time)
         save_results_to_csv()
