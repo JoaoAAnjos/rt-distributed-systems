@@ -75,7 +75,7 @@ def save_results_to_csv(filename=RESULTS_CSV_FILENAME):
             else:
                 task_name = task_obj._id
 
-            task_schedulable_by_sim = 1 if task_exec.deadlines_missed == 0 else 0
+            task_schedulable_by_sim = True if task_exec.deadlines_missed == 0 else False
             
             avg_response_time = 0.0
             max_response_time = 0.0
@@ -83,7 +83,7 @@ def save_results_to_csv(filename=RESULTS_CSV_FILENAME):
                 avg_response_time = sum(task_exec.response_times) / len(task_exec.response_times)
                 max_response_time = max(task_exec.response_times)
 
-            component_schedulable = 1 if component_schedulability_map.get(comp_id, False) else 0
+            component_schedulable = True if component_schedulability_map.get(comp_id, False) else False
             core_obj = cores_registry.get(component_obj._core_id)
 
             rows_to_write.append({

@@ -30,8 +30,7 @@ def analyse_system():
 
     #   Clear and initialize CSV results file
     with open(ANALYSIS_OUTPUT, "w") as f:
-        f.write("Task_ID,WCET,Priority,Task_Schedulable,Component_ID,Component_Schedulable\n")
-        f.write("=========================================================================\n")
+        f.write("Task_ID,adjusted_WCET,Priority,Task_Schedulable,Component_ID,Component_Schedulable\n")
 
     #   Make a copy of cores registry
     cores_register = cores_registry.copy()
@@ -82,7 +81,7 @@ def analyse_system():
 def write_results(sorted_tasks,schedulable_tasks,component,schedulable):
     with open(ANALYSIS_OUTPUT, "a") as f:
         for i, task in enumerate(sorted_tasks):
-            f.write(f"{task._id},{task._wcet:.4f},{task._priority},{schedulable_tasks[i]},"
+            f.write(f"{task._id},{task._wcet:.4f},{int(task._priority)},{schedulable_tasks[i]},"
                     f"{component._component_id},{schedulable}\n")
 
 
